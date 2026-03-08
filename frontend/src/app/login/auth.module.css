@@ -1,0 +1,392 @@
+/* Auth Page */
+.authPage {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+/* Animated Background */
+.authBackground {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.gradientOrb1,
+.gradientOrb2 {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    animation: float 15s ease-in-out infinite;
+}
+
+.gradientOrb1 {
+    width: 500px;
+    height: 500px;
+    background: linear-gradient(135deg, #FF6E40, #D81B60);
+    top: -150px;
+    right: -150px;
+}
+
+.gradientOrb2 {
+    width: 400px;
+    height: 400px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    bottom: -100px;
+    left: -100px;
+    animation-delay: 5s;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translate(0, 0) scale(1);
+    }
+    50% {
+        transform: translate(30px, 30px) scale(1.1);
+    }
+}
+
+/* Auth Card */
+.authCard {
+    position: relative;
+    z-index: 1;
+    background: white;
+    border-radius: 24px;
+    padding: 3rem 2.5rem;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08),
+                0 0 1px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header */
+.authHeader {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.authLogo {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #FF6E40, #D81B60);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 2rem;
+    letter-spacing: -0.02em;
+    position: relative;
+    display: inline-block;
+}
+
+.authLogo::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 4px;
+    background: linear-gradient(90deg, #FF6E40, #D81B60);
+    border-radius: 2px;
+}
+
+.authTitle {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+}
+
+.authSubtitle {
+    color: #6b7280;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+/* Role Selector (Register page) */
+.roleSelector {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.roleOption {
+    padding: 1.25rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.roleOption:hover {
+    border-color: #FF6E40;
+    background: rgba(255, 110, 64, 0.03);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 110, 64, 0.15);
+}
+
+.roleOption.selected {
+    border-color: #FF6E40;
+    background: linear-gradient(135deg, rgba(255, 110, 64, 0.08), rgba(216, 27, 96, 0.05));
+    box-shadow: 0 4px 16px rgba(255, 110, 64, 0.2);
+}
+
+.roleIcon {
+    font-size: 32px;
+    display: block;
+}
+
+.roleLabel {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.roleDesc {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Form */
+.authForm {
+    margin-bottom: 1.5rem;
+}
+
+.formGroup {
+    margin-bottom: 1.25rem;
+}
+
+.formLabel {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+.formInput {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    font-size: 15px;
+    transition: all 0.2s;
+    background: white;
+}
+
+.formInput:focus {
+    outline: none;
+    border-color: #FF6E40;
+    box-shadow: 0 0 0 4px rgba(255, 110, 64, 0.1);
+}
+
+.formInput::placeholder {
+    color: #9ca3af;
+}
+
+/* Auth Button */
+.authBtn {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #FF6E40, #D81B60);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(255, 110, 64, 0.3);
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.authBtn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s;
+}
+
+.authBtn:hover:not(:disabled)::before {
+    left: 100%;
+}
+
+.authBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 110, 64, 0.4);
+}
+
+.authBtn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.authBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Spinner */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Error Box */
+.errorBox {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    color: #dc2626;
+    font-size: 14px;
+    font-weight: 500;
+    animation: shake 0.4s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+.errorIcon {
+    font-size: 20px;
+}
+
+/* Demo Box (Login page only) */
+.demoBox {
+    margin-top: 1.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.demoTitle {
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+}
+
+.demoAccounts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.demoBtn {
+    padding: 0.875rem 0.5rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    color: #374151;
+}
+
+.demoBtn:hover {
+    transform: translateY(-2px);
+    border-color: #FF6E40;
+    background: linear-gradient(135deg, rgba(255, 110, 64, 0.05), rgba(216, 27, 96, 0.02));
+    box-shadow: 0 4px 12px rgba(255, 110, 64, 0.15);
+}
+
+/* Auth Switch */
+.authSwitch {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.authSwitch a {
+    color: #FF6E40;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.authSwitch a:hover {
+    color: #D81B60;
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .authPage {
+        padding: 1rem;
+    }
+
+    .authCard {
+        padding: 2rem 1.5rem;
+    }
+
+    .authLogo {
+        font-size: 28px;
+    }
+
+    .authTitle {
+        font-size: 24px;
+    }
+
+    .roleSelector {
+        grid-template-columns: 1fr;
+    }
+
+    .demoAccounts {
+        grid-template-columns: 1fr;
+    }
+}

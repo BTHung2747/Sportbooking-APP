@@ -1,0 +1,126 @@
+.wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ── Toggle Button ── */
+.toggleBtn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border-radius: 24px;
+    border: 1.5px solid #E5E7EB;
+    background: white;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.toggleBtn:hover:not(:disabled) {
+    border-color: #FF5A5F;
+    color: #FF5A5F;
+    background: rgba(255, 90, 95, 0.04);
+}
+
+.toggleBtnActive {
+    border-color: #FF5A5F;
+    background: rgba(255, 90, 95, 0.08);
+    color: #FF5A5F;
+    font-weight: 600;
+}
+
+.toggleBtnLoading {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.icon {
+    flex-shrink: 0;
+}
+
+.spinner {
+    flex-shrink: 0;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Badge "≤ 10km" */
+.badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #FF5A5F;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+/* ── Status messages ── */
+.errorMsg,
+.successMsg,
+.idleMsg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.errorMsg {
+    color: #EF4444;
+}
+
+.successMsg {
+    color: #059669;
+}
+
+.idleMsg {
+    color: #9CA3AF;
+}
+
+.retryBtn,
+.clearBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+    background: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: inherit;
+    transition: background 0.15s;
+    margin-left: 2px;
+}
+
+.retryBtn:hover {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.clearBtn:hover {
+    background: rgba(5, 150, 105, 0.08);
+}
+
+.helpLink {
+    font-size: 12px;
+    color: #EF4444;
+    text-decoration: underline;
+    margin-left: 2px;
+}

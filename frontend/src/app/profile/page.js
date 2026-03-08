@@ -1,0 +1,370 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { usersAPI } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { 
+    Mail, Phone, Calendar, CheckCircle, XCircle,
+    Edit2, Save, X,
+    Building2, Users, Star, Trophy,
+    MessageCircle, Bell, ClipboardList, CheckSquare,
+    CalendarX, ArrowRight
+} from 'lucide-react';
+import styles from './profile.module.css';
+
+export default function ProfilePage() {
+    const router = useRouter();
+    const { user, isAuthenticated, updateUser, loading: authLoading } = useAuth();
+    const [form, setForm] = useState({
+        fullName: '', phone: '', avatarUrl: '',
+    });
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState('');
+    const [activeTab, setActiveTab] = useState('overview');
+
+    useEffect(() => {
+        if (!authLoading && !isAuthenticated) { router.push('/login'); return; }
+        if (user) {
+            setForm({
+                fullName: user.fullName || '',
+                phone: user.phone || '',
+                avatarUrl: user.avatarUrl || '',
+            });
+        }
+    }, [user, isAuthenticated, authLoading]);
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        setMessage('');
+        try {
+            const { data } = await usersAPI.updateProfile(form);
+            updateUser(data.data.user);
+            setEditing(false);
+            setMessage('✅ Cập nhật thành công!');
+            setTimeout(() => setMessage(''), 3000);
+        } catch (err) {
+            setMessage('❌ ' + (err.response?.data?.message || 'Cập nhật thất bại'));
+        } finally { setSaving(false); }
+    };
+
+    if (!user) return null;
+
+    const roleLabels = {
+        ADMIN: { label: 'Quản trị viên', icon: '👑', color: '#FF9F0A' },
+        OWNER: { label: 'Chủ sân', icon: '🏠', color: '#30D158' },
+        CUSTOMER: { label: 'Khách hàng', icon: '👤', color: '#0066FF' },
+    };
+    const role = roleLabels[user.role] || roleLabels.CUSTOMER;
+
+    return (
+        <div className={styles.page}>
+            {/* Hero Profile Section */}
+            <div className={styles.heroSection}>
+                <div className={styles.heroContainer}>
+                    {!editing && (
+                        <div className={styles.editButtonWrapper}>
+                            <button className={styles.editButton} onClick={() => setEditing(true)}>
+                                <Edit2 size={16} />
+                                Chỉnh sửa hồ sơ
+                            </button>
+                        </div>
+                    )}
+
+                    <div className={styles.heroContent}>
+                        <div className={styles.avatarLarge}>
+                            {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.fullName} />
+                            ) : (
+                                user.fullName?.charAt(0)?.toUpperCase()
+                            )}
+                        </div>
+                        <h1 className={styles.userName}>{user.fullName}</h1>
+                        <div className={styles.roleBadge} style={{ background: role.color + '33', color: role.color }}>
+                            {role.icon} {role.label}
+                        </div>
+                    </div>
+
+                    <div className={styles.infoStats}>
+                        <div className={styles.statCard}>
+                            <div className={styles.statContent}>
+                                <span className={styles.statLabel}>
+                                    <Mail size={16} color="#FF6E40" />
+                                    Email
+                                </span>
+                                <span className={styles.statValue}>{user.email}</span>
+                            </div>
+                        </div>
+                        <div className={styles.statCard}>
+                            <div className={styles.statContent}>
+                                <span className={styles.statLabel}>
+                                    <Phone size={16} color="#FF6E40" />
+                                    Số điện thoại
+                                </span>
+                                <span className={styles.statValue}>{user.phone || 'Chưa có'}</span>
+                            </div>
+                        </div>
+                        <div className={styles.statCard}>
+                            <div className={styles.statContent}>
+                                <span className={styles.statLabel}>
+                                    {user.isVerified ? (
+                                        <CheckCircle size={16} color="#10B981" />
+                                    ) : (
+                                        <XCircle size={16} color="#6B7280" />
+                                    )}
+                                    Xác thực
+                                </span>
+                                <span className={styles.statValue} style={{ color: user.isVerified ? '#10B981' : '#6B7280' }}>
+                                    {user.isVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className={styles.statCard}>
+                            <div className={styles.statContent}>
+                                <span className={styles.statLabel}>
+                                    <Calendar size={16} color="#FF6E40" />
+                                    Tham gia
+                                </span>
+                                <span className={styles.statValue}>{new Date(user.createdAt).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className={styles.navTabs}>
+                <div className={styles.tabsContainer}>
+                    <button 
+                        className={`${styles.tab} ${activeTab === 'overview' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('overview')}
+                    >
+                        Tổng quan
+                    </button>
+                    <button 
+                        className={`${styles.tab} ${activeTab === 'bookings' ? styles.active : ''}`}
+                        onClick={() => {
+                            setActiveTab('bookings');
+                            router.push('/bookings');
+                        }}
+                    >
+                        Lịch sử đặt sân
+                    </button>
+                    <button 
+                        className={`${styles.tab} ${activeTab === 'matches' ? styles.active : ''}`}
+                        onClick={() => {
+                            setActiveTab('matches');
+                            router.push('/matchmaking');
+                        }}
+                    >
+                        Ghép trận
+                    </button>
+                    <button 
+                        className={`${styles.tab} ${activeTab === 'favorites' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('favorites')}
+                    >
+                        Yêu thích
+                    </button>
+                    <button 
+                        className={`${styles.tab} ${activeTab === 'notifications' ? styles.active : ''}`}
+                        onClick={() => {
+                            setActiveTab('notifications');
+                            router.push('/notifications');
+                        }}
+                    >
+                        Thông báo
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className={styles.mainContent}>
+                <div className={styles.layout}>
+                    {/* Left Column */}
+                    <div className={styles.leftColumn}>
+                        {/* Hàm chỉnh sửa */}
+                        {editing && (
+                            <div className={styles.editCard}>
+                                <h2>Chỉnh sửa hồ sơ</h2>
+
+                                {message && (
+                                    <div className={styles.message} style={{ 
+                                        background: message.startsWith('✅') ? '#F0FDF4' : '#FEF2F2',
+                                        color: message.startsWith('✅') ? '#10B981' : '#DC2626'
+                                    }}>
+                                        {message}
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleSave}>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.formLabel}>Họ và tên</label>
+                                        <input
+                                            type="text"
+                                            className={styles.formInput}
+                                            value={form.fullName}
+                                            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.formLabel}>Số điện thoại</label>
+                                        <input
+                                            type="tel"
+                                            className={styles.formInput}
+                                            placeholder="0901234567"
+                                            value={form.phone}
+                                            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.formLabel}>Avatar URL</label>
+                                        <input
+                                            type="url"
+                                            className={styles.formInput}
+                                            placeholder="https://example.com/avatar.jpg"
+                                            value={form.avatarUrl}
+                                            onChange={(e) => setForm({ ...form, avatarUrl: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className={styles.formActions}>
+                                        <button type="submit" className={styles.saveButton} disabled={saving}>
+                                            <Save size={16} />
+                                            {saving ? 'Đang lưu...' : 'Lưu'}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            className={styles.cancelButton} 
+                                            onClick={() => { setEditing(false); setMessage(''); }}
+                                        >
+                                            <X size={16} />
+                                            Hủy
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Activity Stats */}
+                        <div className={styles.card}>
+                            <h2 className={styles.cardTitle}>Thống kê hoạt động</h2>
+                            <div className={styles.activityGrid}>
+                                <div className={styles.activityBox}>
+                                    <div className={`${styles.activityIconWrap} ${styles.purple}`}>
+                                        <Building2 size={28} color="#8B5CF6" />
+                                    </div>
+                                    <div className={styles.activityNumber}>0</div>
+                                    <div className={styles.activityLabel}>Lượt đặt</div>
+                                </div>
+                                <div className={styles.activityBox}>
+                                    <div className={`${styles.activityIconWrap} ${styles.yellow}`}>
+                                        <Users size={28} color="#F59E0B" />
+                                    </div>
+                                    <div className={styles.activityNumber}>0</div>
+                                    <div className={styles.activityLabel}>Trận đấu</div>
+                                </div>
+                                <div className={styles.activityBox}>
+                                    <div className={`${styles.activityIconWrap} ${styles.yellow}`}>
+                                        <Star size={28} color="#F59E0B" />
+                                    </div>
+                                    <div className={styles.activityLabel} style={{ fontSize: '20px', fontWeight: 600, color: '#6B7280', marginTop: '1rem' }}>
+                                        Chưa có
+                                    </div>
+                                    <div className={styles.activityLabel} style={{ color: '#9CA3AF' }}>đánh giá</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className={styles.card}>
+                            <div className={styles.cardHeader}>
+                                <h2 className={styles.cardTitle}>Đặt sân gần đây</h2>
+                                <button className={styles.viewAllBtn} onClick={() => router.push('/bookings')}>
+                                    Xem tất cả
+                                    <ArrowRight size={16} />
+                                </button>
+                            </div>
+                            <div className={styles.emptyState}>
+                                <CalendarX className={styles.emptyIcon} size={64} color="#D1D5DB" />
+                                <div className={styles.emptyText}>Bạn chưa có lịch đặt sân nào</div>
+                                <button className={styles.emptyButton} onClick={() => router.push('/venues')}>
+                                    Tìm sân ngay
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column - Quick Links */}
+                    <div className={styles.rightColumn}>
+                        <div className={`${styles.card} ${styles.quickLinks}`}>
+                            <h3 className={styles.cardTitle}>Truy cập nhanh</h3>
+                            <div className={styles.linkGrid}>
+                                {user.role === 'CUSTOMER' && (
+                                    <>
+                                        <button className={styles.linkCard} onClick={() => router.push('/bookings')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.blue}`}>
+                                                <Calendar size={24} color="#3B82F6" />
+                                            </div>
+                                            <strong>Đặt sân của tôi</strong>
+                                        </button>
+                                        <button className={styles.linkCard} onClick={() => router.push('/matchmaking')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.yellow}`}>
+                                                <Trophy size={24} color="#F59E0B" />
+                                            </div>
+                                            <strong>Ghép trận</strong>
+                                        </button>
+                                    </>
+                                )}
+                                {user.role === 'OWNER' && (
+                                    <>
+                                        <button className={styles.linkCard} onClick={() => router.push('/owner/venues')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.blue}`}>
+                                                <Building2 size={24} color="#3B82F6" />
+                                            </div>
+                                            <strong>Quản lý sân</strong>
+                                        </button>
+                                        <button className={styles.linkCard} onClick={() => router.push('/owner/bookings')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.yellow}`}>
+                                                <ClipboardList size={24} color="#F59E0B" />
+                                            </div>
+                                            <strong>Lịch đặt sân</strong>
+                                        </button>
+                                    </>)}
+                                {user.role === 'ADMIN' && (<>
+                                        <button className={styles.linkCard} onClick={() => router.push('/admin/venues')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.blue}`}>
+                                                <CheckSquare size={24} color="#3B82F6" />
+                                            </div>
+                                            <strong>Duyệt sân</strong>
+                                        </button>
+                                        <button className={styles.linkCard} onClick={() => router.push('/admin/users')}>
+                                            <div className={`${styles.linkIconWrap} ${styles.yellow}`}>
+                                                <Users size={24} color="#F59E0B" />
+                                            </div>
+                                            <strong>Quản lý users</strong>
+                                        </button>
+                                    </>
+                                )}
+                                <button className={styles.linkCard} onClick={() => router.push('/chat')}>
+                                    <div className={`${styles.linkIconWrap} ${styles.purple}`}>
+                                        <MessageCircle size={24} color="#8B5CF6" />
+                                    </div>
+                                    <strong>Tin nhắn</strong>
+                                </button>
+                                <button className={styles.linkCard} onClick={() => router.push('/notifications')}>
+                                    <div className={`${styles.linkIconWrap} ${styles.orange}`}>
+                                        <Bell size={24} color="#FF6E40" />
+                                    </div>
+                                    <strong>Thông báo</strong>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
