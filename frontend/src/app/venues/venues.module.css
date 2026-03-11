@@ -34,7 +34,7 @@
     display: flex;
     align-items: center;
     height: 56px;
-    overflow: hidden;
+    position: relative;
 }
 
 .searchSport {
@@ -101,6 +101,7 @@
     padding: 0 32px;
     background: #FF5A5F;
     border: none;
+    border-radius: 0 12px 12px 0;
     color: white;
     font-size: 15px;
     font-weight: 600;
@@ -145,13 +146,14 @@
 }
 
 .sportTab:hover {
-    border-color: #FF5A5F;
-    background: rgba(255, 90, 95, 0.05);
+    border-color: #E04147;
+    background: linear-gradient(135deg, rgba(224, 65, 71, 0.05), rgba(224, 65, 71, 0.08));
+    color: #E04147;
 }
 
 .sportTabActive {
-    background: #FF5A5F;
-    border-color: #FF5A5F;
+    background: linear-gradient(135deg, #FF6E40, #E04147);
+    border-color: #E04147;
     color: white;
 }
 
@@ -174,12 +176,18 @@
     font-size: 14px;
     color: #374151;
     cursor: pointer;
+    transition: color 0.15s;
+}
+
+.quickFilter:hover {
+    color: #E04147;
 }
 
 .quickFilter input[type="checkbox"] {
     width: 18px;
     height: 18px;
     cursor: pointer;
+    accent-color: #E04147;
 }
 
 /* Results Bar */
@@ -219,7 +227,148 @@
 
 .resultsSort select:focus {
     outline: none;
-    border-color: #FF5A5F;
+    border-color: #E04147;
+}
+
+/* ── Custom Dropdown ────────────────────── */
+.customDropdown {
+    position: relative;
+    user-select: none;
+}
+
+.dropdownTrigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--bg-primary, #ffffff);
+    border: 1.5px solid var(--border, #E5E7EB);
+    border-radius: var(--radius-md, 8px);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary, #111827);
+    cursor: pointer;
+    transition: all var(--transition-fast, 0.2s);
+    white-space: nowrap;
+}
+
+/* Màu cam đậm hơn khi hover */
+.dropdownTrigger:hover {
+    border-color: #E04147;
+    box-shadow: 0 0 0 3px rgba(224, 65, 71, 0.08);
+    color: #E04147;
+}
+
+/* Đổi màu viền và chữ khi click mở dropdown */
+.dropdownTriggerOpen {
+    border-color: #E04147;
+    box-shadow: 0 0 0 3px rgba(224, 65, 71, 0.15);
+    color: #E04147;
+}
+
+/* Đổi màu icon mũi tên khi dropdown đang mở */
+.dropdownTriggerOpen .dropdownChevron {
+    color: #E04147;
+}
+
+/* Sport dropdown inside search bar – borderless */
+.dropdownTriggerInline {
+    border: none;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+}
+
+.dropdownTriggerInline:hover {
+    border: none;
+    box-shadow: none;
+    color: #E04147;
+}
+
+.dropdownTriggerInline.dropdownTriggerOpen {
+    border: none;
+    box-shadow: none;
+    color: #E04147;
+}
+
+.dropdownChevron {
+    display: flex;
+    align-items: center;
+    transition: transform var(--transition-fast, 0.2s);
+    color: var(--text-tertiary, #9CA3AF);
+    flex-shrink: 0;
+}
+
+.dropdownChevronOpen {
+    transform: rotate(180deg);
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 100%;
+    background: var(--bg-elevated, #ffffff);
+    border: 1px solid var(--border-light, #E5E7EB);
+    border-radius: var(--radius-md, 8px);
+    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+    padding: 6px;
+    z-index: 100;
+    animation: dropdownFadeIn 180ms cubic-bezier(0.25, 0.1, 0.25, 1);
+    overflow: hidden;
+}
+
+.dropdownMenuRight {
+    left: auto;
+    right: 0;
+}
+
+.dropdownOption {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm, 6px);
+    font-size: 14px;
+    font-weight: 450;
+    color: var(--text-primary, #111827);
+    cursor: pointer;
+    transition: background var(--transition-fast, 0.2s);
+    white-space: nowrap;
+}
+
+.dropdownOption:hover {
+    background: rgba(224, 65, 71, 0.05);
+}
+
+.dropdownOptionActive {
+    background: rgba(224, 65, 71, 0.1);
+    color: #E04147;
+    font-weight: 600;
+}
+
+.dropdownOptionActive:hover {
+    background: rgba(224, 65, 71, 0.15);
+}
+
+.dropdownOptionIcon {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Grid */
@@ -305,45 +454,45 @@
 
 .heartButton:hover {
     background: white;
-    color: #EF4444;
+    color: #E04147;
     transform: scale(1.1);
 }
 
 /* Venue Body */
 .venueBody {
-    padding: 20px;
+    padding: 14px 16px 10px;
 }
 
 .venueName {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
     color: #1A1A1A;
-    margin-bottom: 10px;
-    line-height: 1.3;
+    margin-bottom: 7px;
+    line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    min-height: 46px;
+    min-height: 42px;
 }
 
 /* Rating */
 .venueRating {
     display: flex;
     align-items: center;
-    gap: 4px;
-    margin-bottom: 10px;
+    gap: 2px;
+    margin-bottom: 7px;
 }
 
 .ratingValue {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     color: #1A1A1A;
-    margin-left: 4px;
+    margin-left: 3px;
 }
 
 .reviewCount {
-    font-size: 14px;
+    font-size: 12px;
     color: #9CA3AF;
 }
 
@@ -351,10 +500,10 @@
 .venueInfo {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: 6px;
+    font-size: 12px;
     color: #6B7280;
-    margin-bottom: 10px;
+    margin-bottom: 7px;
 }
 
 .infoDivider {
@@ -365,14 +514,15 @@
 .venueLocation {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
+    gap: 4px;
+    font-size: 12px;
     color: #6B7280;
-    margin-bottom: 12px;
+    margin-bottom: 9px;
+    overflow: hidden;
 }
 
 .venueLocation svg {
-    color: #FF5A5F;
+    color: #E04147;
     flex-shrink: 0;
 }
 
@@ -381,30 +531,119 @@
     -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    flex: 1;
+}
+
+.distanceBadge {
+    display: inline-flex !important;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: unset !important;
+    overflow: visible !important;
+    flex: unset !important;
+    flex-shrink: 0;
+    padding: 2px 7px;
+    background: #FFF0F0;
+    color: #E04147;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 20px;
+    white-space: nowrap;
 }
 
 /* Amenities */
 .venueAmenities {
     display: flex;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 9px;
 }
 
 .venueAmenities svg {
-    color: #9CA3AF;
+    color: #C4C9D4;
 }
 
 /* Sport Tags */
 .sportTags {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
-.sportTags span {
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
+/* ── Venue Footer ── */
+.venueFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 14px;
+    border-top: 1.5px solid #F3F4F6;
+    margin-top: 4px;
+}
+
+.venuePrice {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    flex-wrap: wrap;
+    row-gap: 0;
+}
+
+.priceFrom {
+    font-size: 11px;
+    color: #9CA3AF;
+    font-weight: 500;
+    margin-right: 2px;
+}
+
+.priceValue {
+    font-size: 20px;
+    font-weight: 900;
+    color: #FF6E40;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.priceUnit {
+    font-size: 11px;
+    color: #9CA3AF;
+    font-weight: 500;
+}
+
+.bookBtn {
+    width: 120px;
+    height: 40px;
+    background: linear-gradient(135deg, #FF6E40 0%, #E04147 100%);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    box-shadow: 0 4px 14px rgba(224, 65, 71, 0.38);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.bookBtn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.18s;
+    border-radius: 10px;
+}
+
+.bookBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(224, 65, 71, 0.48);
+}
+
+.bookBtn:hover::after {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.bookBtn:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(224, 65, 71, 0.32);
 }
 
 .tagYellow {
@@ -465,6 +704,7 @@
     0% {
         background-position: 200% 0;
     }
+
     100% {
         background-position: -200% 0;
     }
@@ -522,17 +762,19 @@
 
 .pageArrow:hover,
 .pageNum:hover {
-    border-color: #FF5A5F;
-    background: rgba(255, 90, 95, 0.05);
+    border-color: #E04147;
+    background: rgba(224, 65, 71, 0.05);
 }
 
 .pageActive {
-    background: #FF5A5F;
-    border-color: #FF5A5F;
+    background: #E04147;
+    border-color: #E04147;
     color: white;
 }
 
 .pageInfo {
+    display: flex;
+    justify-content: center;
     margin-left: 16px;
     font-size: 14px;
     color: #6B7280;
@@ -582,7 +824,7 @@
     background: white;
     border: none;
     border-radius: 8px;
-    color: #FF5A5F;
+    color: #E04147;
     font-size: 15px;
     font-weight: 700;
     cursor: pointer;

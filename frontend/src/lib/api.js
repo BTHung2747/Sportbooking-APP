@@ -120,6 +120,7 @@ export const chatAPI = {
 export const reviewsAPI = {
     create: (data) => api.post('/reviews', data),
     getByVenue: (venueId, params) => api.get(`/reviews/venue/${venueId}`, { params }),
+    getMyReviews: () => api.get('/reviews/my'),
 };
 
 // Notifications API

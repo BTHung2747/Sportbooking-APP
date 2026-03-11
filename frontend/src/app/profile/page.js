@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { usersAPI } from '@/lib/api';
+import { usersAPI, bookingsAPI ,reviewsAPI} from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { 
     Mail, Phone, Calendar, CheckCircle, XCircle,
@@ -23,6 +23,11 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [activeTab, setActiveTab] = useState('overview');
+    const [recentBookings, setRecentBookings] = useState([]);
+    const [bookingsLoading, setBookingsLoading] = useState(false);
+    const [stats, setStats] = useState({ totalBookings: 0, completedBookings: 0 });
+    const [reviewCount, setReviewCount] = useState(0);
+    const [reviewsLoading, setReviewsLoading] = useState(true);
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) { router.push('/login'); return; }
@@ -32,8 +37,28 @@ export default function ProfilePage() {
                 phone: user.phone || '',
                 avatarUrl: user.avatarUrl || '',
             });
+            loadRecentBookings();
+            loadReviews();
         }
     }, [user, isAuthenticated, authLoading]);
+
+    const loadRecentBookings = async () => {
+        try {
+            setBookingsLoading(true);
+            // Lấy tất cả để tính stats, dùng limit lớn
+            const { data } = await bookingsAPI.getMyBookings({ limit: 100 });
+            const all = data.data?.bookings || data.data || [];
+            setRecentBookings(all.slice(0, 3)); // chỉ hiện 3 cái gần nhất
+            setStats({
+                totalBookings: all.length,
+                completedBookings: all.filter(b => b.status === 'COMPLETED').length,
+            });
+        } catch (err) {
+            console.error('Failed to load bookings:', err);
+        } finally {
+            setBookingsLoading(false);
+        }
+    };
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -49,6 +74,23 @@ export default function ProfilePage() {
             setMessage('❌ ' + (err.response?.data?.message || 'Cập nhật thất bại'));
         } finally { setSaving(false); }
     };
+    const loadReviews = async () => {
+    try {
+        setReviewsLoading(true);
+        const { data } = await reviewsAPI.getMyReviews();
+        
+        // Backend trả về { success: true, data: { reviews: [...] } }
+        const reviews = data.data.reviews || [];
+        setReviewCount(reviews.length);
+        
+        console.log('User reviews:', reviews); // Debug
+    } catch (err) {
+        console.error('Failed to load reviews:', err);
+        setReviewCount(0);
+    } finally {
+        setReviewsLoading(false);
+    }
+};
 
     if (!user) return null;
 
@@ -178,11 +220,8 @@ export default function ProfilePage() {
                     </button>
                 </div>
             </div>
-
-            {/* Main Content */}
             <div className={styles.mainContent}>
                 <div className={styles.layout}>
-                    {/* Left Column */}
                     <div className={styles.leftColumn}>
                         {/* Hàm chỉnh sửa */}
                         {editing && (
@@ -258,24 +297,22 @@ export default function ProfilePage() {
                                     <div className={`${styles.activityIconWrap} ${styles.purple}`}>
                                         <Building2 size={28} color="#8B5CF6" />
                                     </div>
-                                    <div className={styles.activityNumber}>0</div>
+                                    <div className={styles.activityNumber}>{stats.totalBookings}</div>
                                     <div className={styles.activityLabel}>Lượt đặt</div>
                                 </div>
                                 <div className={styles.activityBox}>
                                     <div className={`${styles.activityIconWrap} ${styles.yellow}`}>
                                         <Users size={28} color="#F59E0B" />
                                     </div>
-                                    <div className={styles.activityNumber}>0</div>
+                                    <div className={styles.activityNumber}>{stats.completedBookings}</div>
                                     <div className={styles.activityLabel}>Trận đấu</div>
                                 </div>
                                 <div className={styles.activityBox}>
                                     <div className={`${styles.activityIconWrap} ${styles.yellow}`}>
                                         <Star size={28} color="#F59E0B" />
                                     </div>
-                                    <div className={styles.activityLabel} style={{ fontSize: '20px', fontWeight: 600, color: '#6B7280', marginTop: '1rem' }}>
-                                        Chưa có
-                                    </div>
-                                    <div className={styles.activityLabel} style={{ color: '#9CA3AF' }}>đánh giá</div>
+                                    <div className={styles.activityNumber}>{reviewCount}</div>
+                                    <div className={styles.activityLabel}>Đánh giá</div>
                                 </div>
                             </div>
                         </div>
@@ -287,13 +324,80 @@ export default function ProfilePage() {
                                     <ArrowRight size={16} />
                                 </button>
                             </div>
-                            <div className={styles.emptyState}>
-                                <CalendarX className={styles.emptyIcon} size={64} color="#D1D5DB" />
-                                <div className={styles.emptyText}>Bạn chưa có lịch đặt sân nào</div>
-                                <button className={styles.emptyButton} onClick={() => router.push('/venues')}>
-                                    Tìm sân ngay
-                                </button>
-                            </div>
+
+                            {bookingsLoading ? (
+                                // Skeleton loading
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[1,2,3].map(i => (
+                                        <div key={i} style={{ height: 72, borderRadius: 12, background: 'linear-gradient(90deg,#F3F4F6 0%,#E5E7EB 50%,#F3F4F6 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
+                                    ))}
+                                </div>
+                            ) : recentBookings.length === 0 ? (
+                                <div className={styles.emptyState}>
+                                    <CalendarX className={styles.emptyIcon} size={64} color="#D1D5DB" />
+                                    <div className={styles.emptyText}>Bạn chưa có lịch đặt sân nào</div>
+                                    <button className={styles.emptyButton} onClick={() => router.push('/venues')}>
+                                        Tìm sân ngay
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {recentBookings.map((booking) => {
+                                        const statusMap = {
+                                            PENDING:   { label: 'Chờ xác nhận', color: '#F59E0B', bg: '#FEF3C7' },
+                                            CONFIRMED: { label: 'Đã xác nhận',  color: '#10B981', bg: '#D1FAE5' },
+                                            CANCELLED: { label: 'Đã hủy',       color: '#EF4444', bg: '#FEE2E2' },
+                                            COMPLETED: { label: 'Hoàn thành',   color: '#6B7280', bg: '#F3F4F6' },
+                                        };
+                                        const s = statusMap[booking.status] || statusMap.PENDING;
+                                        return (
+                                            <div
+                                                key={booking.id}
+                                                onClick={() => router.push('/bookings')}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 14,
+                                                    padding: '14px 16px', borderRadius: 12,
+                                                    background: '#F9FAFB', cursor: 'pointer',
+                                                    border: '1px solid #F3F4F6',
+                                                    transition: 'all 0.2s',
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
+                                                onMouseLeave={e => e.currentTarget.style.background = '#F9FAFB'}
+                                            >
+                                                {/* Icon */}
+                                                <div style={{
+                                                    width: 44, height: 44, borderRadius: 12,
+                                                    background: '#DBEAFE', display: 'flex',
+                                                    alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                                }}>
+                                                    <Calendar size={22} color="#3B82F6" />
+                                                </div>
+
+                                                {/* Info */}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {booking.field?.venue?.name || 'Sân thể thao'}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                                                        {booking.field?.name && `${booking.field.name} · `}
+                                                        {booking.date && new Date(booking.date).toLocaleDateString('vi-VN')}
+                                                        {booking.startTime && ` · ${booking.startTime}–${booking.endTime}`}
+                                                    </div>
+                                                </div>
+
+                                                {/* Status badge */}
+                                                <span style={{
+                                                    padding: '4px 10px', borderRadius: 20,
+                                                    fontSize: 11, fontWeight: 600, flexShrink: 0,
+                                                    background: s.bg, color: s.color
+                                                }}>
+                                                    {s.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
 
