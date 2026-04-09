@@ -145,7 +145,7 @@ router.post('/rooms', authenticate, async (req, res, next) => {
     }
 });
 
-// POST /api/chat/rooms/:roomId/messages - Send message (REST fallback)
+// POST /api/chat/rooms/:roomId/messages - Send message (REST fallback & Socket Broadcast)
 router.post('/rooms/:roomId/messages', authenticate, async (req, res, next) => {
     try {
         const membership = await prisma.chatRoomMember.findFirst({
@@ -168,6 +168,12 @@ router.post('/rooms/:roomId/messages', authenticate, async (req, res, next) => {
                 sender: { select: { id: true, fullName: true, avatarUrl: true } },
             },
         });
+
+        // SỬA Ở ĐÂY: Phát (Broadcast) tin nhắn qua Socket.io
+        const io = req.app.get('io');
+        if (io) {
+            io.to(req.params.roomId).emit('new_message', message);
+        }
 
         res.status(201).json({
             success: true,

@@ -14,7 +14,7 @@ import { getSportColorClass, getSportLabel, getSportTagClass } from '@/component
 const SERVER_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
 
 // Số lượng sân tối đa hiển thị trên 1 trang
-const ITEMS_PER_PAGE = 9;
+const ITEMS_PER_PAGE = 6;
 
 export default function VenuesPage() {
     const searchParams = useSearchParams();
@@ -58,7 +58,6 @@ export default function VenuesPage() {
                 ? haversineDistance(userLocation.lat, userLocation.lng, vLat, vLng)
                 : null;
             
-            // LÀM SẠCH GIÁ: Dọn sạch dấu chấm, phẩy, chữ "đ" để JS hiểu đúng là một con số
             let finalPrice = 0;
             if (v.minPrice !== null && v.minPrice !== undefined && v.minPrice !== '') {
                 const cleanPrice = v.minPrice.toString().replace(/[^0-9]/g, '');
@@ -87,6 +86,12 @@ export default function VenuesPage() {
                     v.name?.toLowerCase().includes(kw);
                 if (!match) return false;
             }
+
+            if (advFilters.priceMin !== undefined || advFilters.priceMax !== undefined) {
+                const min = advFilters.priceMin ?? 0;
+                const max = advFilters.priceMax ?? 1000000;
+                if (v.finalPrice > 0 && (v.finalPrice < min || v.finalPrice > max)) return false;
+}
             return true;
         })
         .sort((a, b) => {
@@ -117,10 +122,10 @@ export default function VenuesPage() {
             return 0;
         });
 
-    // === LOGIC PHÂN TRANG ===
+  
     const totalPages = Math.ceil(displayedVenues.length / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    // Cắt ra đúng 12 sân cho trang hiện tại
+   
     const currentVenues = displayedVenues.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     const SportIcons = {

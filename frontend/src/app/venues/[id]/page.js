@@ -1,642 +1,812 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { venuesAPI, bookingsAPI, paymentsAPI } from '@/lib/api';
-import Avatar from '@/components/Avatar';
+import { useState, useEffect, useMemo, use, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { venuesAPI, bookingsAPI, reviewsAPI } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { 
+    MapPin, Star, Share2, Heart, ChevronRight, ChevronDown, ChevronLeft,
+    Calendar, Clock, ShieldCheck, Info,
+    Wifi, Car, UtensilsCrossed, Lock, Smartphone
+} from 'lucide-react';
 import styles from './detail.module.css';
-
-const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
+import PageFooter from '@/components/PageFooter';
+import { getSportIcon, getSportLabel, getSportTagClass } from '@/components/venue/SportIcons';
+import MapPicker from '@/components/MapPicker';
+import DatePicker from '@/components/ui/DatePicker';
 
 const SERVER_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
 
-export default function VenueDetailPage() {
-    const { id } = useParams();
+export default function VenueDetailPage({ params }) {
+    const venueId = use(params).id;
     const router = useRouter();
     const { user, isAuthenticated } = useAuth();
+    
     const [venue, setVenue] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [heroIdx, setHeroIdx] = useState(0);
-
-    // Booking form state
-    const [bookingForm, setBookingForm] = useState({
-        fieldId: '',
-        bookingDate: '',
-        startTime: '',
-        endTime: '',
-        paymentMethod: 'DIRECT',
-    });
-    const [calculatedPrice, setCalculatedPrice] = useState(null);
-    const [bookingStep, setBookingStep] = useState('select'); // select | review | pay | done
-    const [currentBooking, setCurrentBooking] = useState(null);
-    const [error, setError] = useState('');
-    const [submitting, setSubmitting] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedField, setSelectedField] = useState(null);
     const [bookedSlots, setBookedSlots] = useState([]);
+    const [selectedSlots, setSelectedSlots] = useState([]);
+    const [isBooking, setIsBooking] = useState(false);
+    const [paymentType, setPaymentType] = useState('full'); // 'full' or 'deposit'
+    
+    // Custom Dropdown State
+    const [fieldDropdownOpen, setFieldDropdownOpen] = useState(false);
+    const fieldDropdownRef = useRef(null);
+    const [reviewsSortOpen, setReviewsSortOpen] = useState(false);
+    const reviewsSortRef = useRef(null);
+    
+    // Gallery Modal State
+    const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    // Fetch booked slots when field + date change
+    // Reviews State
+    const [reviewsFilter, setReviewsFilter] = useState('all'); // 'all', 5, 4, 3, 2, 1
+    const [reviewsSort, setReviewsSort] = useState('newest'); // 'newest', 'oldest', 'highest', 'lowest'
+    const [reviewsPage, setReviewsPage] = useState(1);
+    const REVIEWS_PER_PAGE = 3;
+
+    // Fetch venue details
     useEffect(() => {
-        if (bookingForm.fieldId && bookingForm.bookingDate) {
-            bookingsAPI.getFieldSlots(bookingForm.fieldId, bookingForm.bookingDate)
-                .then(({ data }) => setBookedSlots(data.data.bookedSlots || []))
-                .catch(() => setBookedSlots([]));
-        } else {
-            setBookedSlots([]);
-        }
-    }, [bookingForm.fieldId, bookingForm.bookingDate]);
-
-    // Check if a given hour is blocked by an existing booking
-    const isHourBooked = (hour) => {
-        const hMins = hour * 60;
-        return bookedSlots.some(slot => {
-            const [sh] = slot.startTime.split(':').map(Number);
-            const [eh] = slot.endTime.split(':').map(Number);
-            return hMins >= sh * 60 && hMins < eh * 60;
-        });
-    };
-
-    // Check if range [startH, endH) overlaps any booked slot
-    const rangeOverlapsBooking = (startH, endH) => {
-        const sMins = startH * 60;
-        const eMins = endH * 60;
-        return bookedSlots.some(slot => {
-            const [sh] = slot.startTime.split(':').map(Number);
-            const [eh] = slot.endTime.split(':').map(Number);
-            return sMins < eh * 60 && eMins > sh * 60;
-        });
-    };
-
-    // Get the minimum start hour (for today, next full hour)
-    const getMinStartHour = () => {
-        if (!bookingForm.bookingDate) return 0;
-        const today = new Date();
-        const selected = new Date(bookingForm.bookingDate);
-        if (selected.toDateString() === today.toDateString()) {
-            return today.getHours() + 1; // next full hour
-        }
-        return 0;
-    };
-
-    useEffect(() => {
+        const loadVenue = async () => {
+            try {
+                const { data } = await venuesAPI.getById(venueId);
+                setVenue(data.data.venue);
+                if (data.data.venue.fields?.length > 0) {
+                    setSelectedField(data.data.venue.fields[0]);
+                }
+            } catch (err) {
+                console.error('Error loading venue:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
         loadVenue();
-    }, [id]);
+    }, [venueId]);
 
-    const loadVenue = async () => {
-        try {
-            const { data } = await venuesAPI.getById(id);
-            setVenue(data.data.venue);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+    // Handle clicks outside of dropdown
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (fieldDropdownRef.current && !fieldDropdownRef.current.contains(e.target)) {
+                setFieldDropdownOpen(false);
+            }
+            if (reviewsSortRef.current && !reviewsSortRef.current.contains(e.target)) {
+                setReviewsSortOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Fetch booked slots when date or field changes
+    useEffect(() => {
+        if (selectedField && selectedDate) {
+            const loadSlots = async () => {
+                try {
+                    const { data } = await bookingsAPI.getFieldSlots(selectedField.id, selectedDate);
+                    setBookedSlots(data.data.bookedSlots);
+                    setSelectedSlots([]); // Clear time selection on change
+                } catch (err) {
+                    console.error('Error loading slots:', err);
+                }
+            };
+            loadSlots();
         }
+    }, [selectedField, selectedDate]);
+
+    const timeToMinutes = (timeStr) => {
+        if (!timeStr) return 0;
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
     };
 
-    const handleFieldSelect = (fieldId) => {
-        setBookingForm({ ...bookingForm, fieldId, startTime: '', endTime: '' });
-        setBookedSlots([]);
-        setError('');
+    const formatPrice = (price) => {
+        if (!price) return '0';
+        return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     };
 
-    const handleBookingSubmit = async () => {
-        if (!isAuthenticated) {
-            router.push('/login');
+    // Generate time slots (every 30 mins)
+    const timeSlots = useMemo(() => {
+        // Fallback to 05:00 and 22:00 if venue times aren't specified
+        const openStr = venue?.openTime || '05:00';
+        const closeStr = venue?.closeTime || '22:00';
+        
+        const slots = [];
+        const [openH, openM] = openStr.split(':').map(Number);
+        const [closeH, closeM] = closeStr.split(':').map(Number);
+        
+        let current = openH * 60 + openM;
+        let end = closeH * 60 + closeM;
+
+        // Handle case where venue closes after midnight (e.g. 02:00)
+        if (end <= current) {
+            end += 24 * 60; 
+        }
+        
+        while (current < end) {
+            const h = Math.floor(current / 60) % 24;
+            const m = current % 60;
+            const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            
+            const currentEnd = current + 30;
+            
+            // Check if slot overlaps with booked slots
+            const isBooked = bookedSlots.some(s => {
+                const sStart = timeToMinutes(s.startTime);
+                const sEnd = timeToMinutes(s.endTime);
+                // Overlap condition: max(start) < min(end)
+                return Math.max(current, sStart) < Math.min(currentEnd, sEnd);
+            });
+            
+            // Realtime filter: Check if slot is in the past for today
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const nowMinutes = today.getHours() * 60 + today.getMinutes();
+            const isPast = selectedDate === todayStr && current < nowMinutes;
+            
+            let endH = Math.floor(currentEnd / 60) % 24;
+            const endM = currentEnd % 60;
+            const endTimeStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+            slots.push({ 
+                time: timeStr, 
+                displayLabel: `${timeStr} - ${endTimeStr}`,
+                minutes: current, 
+                isBooked: isBooked || isPast 
+            });
+            current += 30; // 30 min slots
+        }
+        return slots;
+    }, [venue, bookedSlots]);
+
+    const handleTimeClick = (slot) => {
+        if (slot.isBooked) return;
+        
+        // Start fresh if nothing selected, or if user clicks to restart
+        if (selectedSlots.length === 0 || selectedSlots.length > 1) {
+            setSelectedSlots([slot]);
             return;
         }
-        setError('');
-        setSubmitting(true);
+
+        // If exactly 1 slot is currently selected, treat it as the START, and the newly clicked slot as END
+        const firstSlot = selectedSlots[0];
+        
+        // If clicking the same slot, clear it
+        if (firstSlot.time === slot.time) {
+            setSelectedSlots([]);
+            return;
+        }
+
+        const minMinutes = Math.min(firstSlot.minutes, slot.minutes);
+        const maxMinutes = Math.max(firstSlot.minutes, slot.minutes);
+
+        // Find all slots in between
+        const rangeSlots = timeSlots.filter(s => s.minutes >= minMinutes && s.minutes <= maxMinutes);
+
+        // Check if any slot in the range is already booked
+        const hasBookedInRange = rangeSlots.some(s => s.isBooked);
+
+        if (hasBookedInRange) {
+            alert('Không thể chọn khoảng thời gian này vì có lịch đã được đặt ở giữa.');
+            setSelectedSlots([slot]); // Restart selection from the new click
+            return;
+        }
+
+        // If valid, select all slots in the range
+        setSelectedSlots(rangeSlots);
+    };
+
+    // Calculate end time
+    const getEndTime = (slots) => {
+        if (!slots || slots.length === 0) return '';
+        // Slots are ordered by click sequence, we need to sort them chronologically to find the true end
+        const sorted = [...slots].sort((a, b) => a.minutes - b.minutes);
+        const lastSlot = sorted[sorted.length - 1];
+        
+        let endMinutes = lastSlot.minutes + 30;
+        let endH = Math.floor(endMinutes / 60) % 24;
+        let endM = endMinutes % 60;
+        
+        return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+    };
+
+    const galleryClass = useMemo(() => {
+        if (!venue?.images || venue.images.length === 0) return styles.gallery;
+        if (venue.images.length === 1) return `${styles.gallery} ${styles.gallerySingle}`;
+        if (venue.images.length === 2) return `${styles.gallery} ${styles.galleryDouble}`;
+        return styles.gallery;
+    }, [venue?.images]);
+
+    const openGallery = (index) => {
+        setCurrentImageIndex(index);
+        setIsGalleryOpen(true);
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    };
+
+    const closeGallery = () => {
+        setIsGalleryOpen(false);
+        document.body.style.overflow = 'auto';
+    };
+
+    const nextImage = (e) => {
+        e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev + 1) % venue.images.length);
+    };
+
+    const prevImage = (e) => {
+        e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev - 1 + venue.images.length) % venue.images.length);
+    };
+
+    const handleBooking = async () => {
+        if (!isAuthenticated) {
+            router.push(`/login?redirect=/venues/${venueId}`);
+            return;
+        }
+        
+        if (selectedSlots.length === 0 || !selectedField) {
+            alert('Vui lòng chọn đầy đủ ngày, sân và khung giờ');
+            return;
+        }
 
         try {
-            const { data } = await bookingsAPI.create(bookingForm);
-            setCurrentBooking(data.data);
-            setCalculatedPrice(data.data.payment);
-            setBookingStep('review');
+            setIsBooking(true);
+            const sortedSelected = [...selectedSlots].sort((a, b) => a.minutes - b.minutes);
+            const startMinutes = sortedSelected[0].minutes;
+            const endMinutes = sortedSelected[sortedSelected.length - 1].minutes + 30; // 30 min per slot
+            
+            // Format to exact HH:mm strictly
+            const sH = Math.floor(startMinutes / 60) % 24;
+            const sM = startMinutes % 60;
+            const eH = Math.floor(endMinutes / 60) % 24;
+            const eM = endMinutes % 60;
+
+            const startTime = `${sH.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
+            const endTime = `${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')}`;
+            
+            // Ensure date is strictly YYYY-MM-DD
+            const formattedDate = new Date(selectedDate).toISOString().split('T')[0];
+            
+            const payload = {
+                fieldId: selectedField.id,
+                bookingDate: formattedDate,
+                startTime,
+                endTime,
+                paymentMethod: paymentType === 'full' ? 'ONLINE' : 'DIRECT'
+            };
+            
+            const { data } = await bookingsAPI.create(payload);
+            router.push(`/bookings`);
         } catch (err) {
-            setError(err.response?.data?.message || 'Không thể tạo đặt sân');
+            console.error('Booking failed:', err.response?.data || err);
+            
+            // Extract validation error messages if available
+            let errorMsg = 'Đã có lỗi xảy ra khi đặt sân';
+            if (err.response?.data?.errors) {
+                errorMsg = err.response.data.errors.map(e => e.message).join('\n');
+            } else if (err.response?.data?.message) {
+                errorMsg = err.response.data.message;
+            }
+            alert(`Lỗi đặt sân:\n${errorMsg}`);
         } finally {
-            setSubmitting(false);
+            setIsBooking(false);
         }
     };
 
-    const handlePayment = async () => {
-        setSubmitting(true);
-        setError('');
-        try {
-            await paymentsAPI.mockPay({
-                bookingId: currentBooking.booking.id,
-                method: 'MOCK_VNPAY',
-                simulateSuccess: true,
-            });
-            setBookingStep('done');
-        } catch (err) {
-            setError(err.response?.data?.message || 'Thanh toán thất bại');
-        } finally {
-            setSubmitting(false);
+    // --- Reviews Logic ---
+    const processedReviews = useMemo(() => {
+        if (!venue?.reviews) return [];
+        let result = [...venue.reviews];
+
+        // 1. Filter
+        if (reviewsFilter !== 'all') {
+            result = result.filter(r => r.rating === parseInt(reviewsFilter));
         }
-    };
 
-    if (loading) {
-        return (
-            <div className={styles.page}>
-                <div className="container">
-                    <div className="skeleton" style={{ height: 300, borderRadius: 20, marginBottom: 24 }} />
-                    <div className="skeleton" style={{ height: 40, width: '50%', marginBottom: 16 }} />
-                    <div className="skeleton" style={{ height: 20, width: '30%' }} />
-                </div>
-            </div>
-        );
+        // 2. Sort
+        result.sort((a, b) => {
+            if (reviewsSort === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
+            if (reviewsSort === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
+            if (reviewsSort === 'highest') return b.rating - a.rating;
+            if (reviewsSort === 'lowest') return a.rating - b.rating;
+            return 0;
+        });
+
+        return result;
+    }, [venue?.reviews, reviewsFilter, reviewsSort]);
+
+    const paginatedReviews = useMemo(() => {
+        const startIndex = (reviewsPage - 1) * REVIEWS_PER_PAGE;
+        return processedReviews.slice(startIndex, startIndex + REVIEWS_PER_PAGE);
+    }, [processedReviews, reviewsPage]);
+
+    const totalReviewPages = Math.ceil(processedReviews.length / REVIEWS_PER_PAGE);
+
+    // Calculate rating counts for the filter bar
+    const ratingCounts = useMemo(() => {
+        const counts = { 'all': venue?.reviews?.length || 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+        venue?.reviews?.forEach(r => {
+            if (counts[r.rating] !== undefined) counts[r.rating]++;
+        });
+        return counts;
+    }, [venue?.reviews]);
+
+    if (loading) return <div className={styles.page}><div className="container"><div className="spinner-lg" style={{ margin: '100px auto' }} /></div></div>;
+    if (!venue) return <div className={styles.page}><div className="container"><h1>Không tìm thấy sân</h1></div></div>;
+
+    const images = venue.images?.length > 0 ? venue.images : [];
+    const avgRating = venue.avgRating || 0;
+    
+    // Calculate star distributions
+    const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    if (venue.reviews) {
+        venue.reviews.forEach(r => {
+            const roundedRating = Math.round(r.rating);
+            if (roundedRating >= 1 && roundedRating <= 5) {
+                starCounts[roundedRating]++;
+            }
+        });
     }
+    const totalReviews = venue.reviews?.length || 0;
 
-    if (!venue) {
-        return (
-            <div className={styles.page}>
-                <div className="container">
-                    <div className="empty-state">
-                        <div className="empty-state-icon">😢</div>
-                        <div className="empty-state-title">Không tìm thấy sân</div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    const selectedField = venue.fields?.find(f => f.id === bookingForm.fieldId);
-    const venueImages = venue.images || [];
+    const pricePerHour = selectedField?.pricingRules?.[0]?.price || 0;
+    const totalHours = selectedSlots.length * 0.5;
+    const calculatedPrice = totalHours > 0 ? (pricePerHour * totalHours) : pricePerHour;
 
     return (
         <div className={styles.page}>
-            <div className="container">
-                <div className={styles.layout}>
-                    {/* Left: Venue Info */}
-                    <div className={styles.venueInfo}>
-                        {/* Hero - Images or Placeholder */}
-                        <div className={styles.hero}>
-                            {venueImages.length > 0 ? (
-                                <>
-                                    <img
-                                        src={`${SERVER_URL}${venueImages[heroIdx]}`}
-                                        alt={venue.name}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    />
-                                    {venueImages.length > 1 && (
-                                        <div className={styles.heroNav}>
-                                            <button onClick={() => setHeroIdx(i => (i - 1 + venueImages.length) % venueImages.length)} className={styles.heroNavBtn}>‹</button>
-                                            <span style={{ color: '#fff', fontSize: 13, textShadow: '0 1px 3px rgba(0,0,0,.5)' }}>{heroIdx + 1} / {venueImages.length}</span>
-                                            <button onClick={() => setHeroIdx(i => (i + 1) % venueImages.length)} className={styles.heroNavBtn}>›</button>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className={styles.heroPlaceholder}>
-                                    {venue.sportTypes?.[0] === 'football' ? '⚽' : '🏟️'}
-                                </div>
-                            )}
-                        </div>
+            <div className={styles.container}>
+                {/* Breadcrumbs */}
+                <nav className={styles.breadcrumb}>
+                    <Link href="/">Trang chủ</Link>
+                    <ChevronRight size={14} />
+                    <Link href="/venues">Tìm sân</Link>
+                    <ChevronRight size={14} />
+                    <span>{venue.name}</span>
+                </nav>
 
-                        <div className={styles.venueHeader}>
-                            <h1 className="heading-lg">{venue.name}</h1>
-                            <p className={styles.address}>📍 {venue.address}, {venue.district}, {venue.city}</p>
-
-                            <div className={styles.meta}>
+                {/* Header */}
+                <header className={styles.venueHeader}>
+                    <div className={styles.venueTitleRow}>
+                        <div>
+                            <h1 className={styles.venueName}>{venue.name}</h1>
+                            <div className={styles.venueMeta}>
                                 <div className={styles.rating}>
-                                    <span className="stars">{'★'.repeat(Math.round(venue.avgRating || 0))}</span>
-                                    <strong>{venue.avgRating?.toFixed(1) || '—'}</strong>
-                                    <span className="caption">({venue.reviewCount || 0} đánh giá)</span>
+                                    <Star size={16} fill="#FFC107" color="#FFC107" />
+                                    <span>{avgRating.toFixed(1)} ({venue.reviewCount || 0} đánh giá)</span>
                                 </div>
-                                {venue.openTime && (
-                                    <span className="badge badge-success">🕐 {venue.openTime} - {venue.closeTime}</span>
-                                )}
+                                <div className={styles.location}>
+                                    <MapPin size={16} />
+                                    <span>{venue.address}, {venue.district}, {venue.city}</span>
+                                </div>
                             </div>
                         </div>
+                        <div className={styles.actionButtons}>
+                            <button className="btn btn-ghost btn-icon"><Share2 size={20} /></button>
+                            <button className="btn btn-ghost btn-icon"><Heart size={20} /></button>
+                        </div>
+                    </div>
+                </header>
 
-                        {venue.description && (
-                            <div className={styles.section}>
-                                <h2 className="heading-sm">Giới thiệu</h2>
-                                <p className={styles.description}>{venue.description}</p>
-                            </div>
-                        )}
-
-                        {/* Map Location */}
-                        {venue.latitude && venue.longitude && (
-                            <div className={styles.section}>
-                                <h2 className="heading-sm">📍 Vị trí sân</h2>
-                                <MapPicker
-                                    value={{
-                                        latitude: parseFloat(venue.latitude),
-                                        longitude: parseFloat(venue.longitude),
-                                        fullAddress: `${venue.address}, ${venue.district}, ${venue.city}`,
-                                    }}
-                                    readOnly={true}
-                                    height={250}
+                {/* Gallery - Full Width */}
+                <section className={galleryClass}>
+                    {images.length > 0 ? (
+                        <>
+                            <img 
+                                src={images[0].startsWith('http') ? images[0] : `${SERVER_URL}${images[0]}`} 
+                                className={styles.mainImage} 
+                                alt={venue.name} 
+                                onClick={() => openGallery(0)} 
+                            />
+                            {images.length === 2 && (
+                                <img 
+                                    src={images[1].startsWith('http') ? images[1] : `${SERVER_URL}${images[1]}`} 
+                                    className={styles.sideImage} 
+                                    alt={venue.name} 
+                                    onClick={() => openGallery(1)} 
                                 />
-                                <a
-                                    href={`https://www.google.com/maps/dir/?api=1&destination=${venue.latitude},${venue.longitude}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="btn btn-ghost"
-                                    style={{ width: '100%', marginTop: 8, textAlign: 'center' }}
-                                >
-                                    🧭 Chỉ đường đến sân (Google Maps)
-                                </a>
-                            </div>
-                        )}
-
-                        {/* Fields List */}
-                        <div className={styles.section}>
-                            <h2 className="heading-sm">Danh sách sân ({venue.fields?.length || 0})</h2>
-                            <div className={styles.fieldGrid}>
-                                {venue.fields?.map((field) => (
-                                    <button
-                                        key={field.id}
-                                        className={`${styles.fieldCard} ${bookingForm.fieldId === field.id ? styles.fieldSelected : ''}`}
-                                        onClick={() => handleFieldSelect(field.id)}
-                                    >
-                                        <div className={styles.fieldIcon}>
-                                            {field.fieldType === 'COMBINED' ? '🏟️' : '⚽'}
-                                        </div>
-                                        <div className={styles.fieldInfo}>
-                                            <h4>{field.name}</h4>
-                                            <span className="caption">
-                                                {field.sportType} • {field.capacity ? `${field.capacity} người` : ''}
-                                                {field.fieldType === 'COMBINED' && ' • Sân ghép'}
-                                            </span>
-                                        </div>
-                                        {field.pricingRules?.length > 0 && (
-                                            <div className={styles.fieldPrice}>
-                                                {Number(field.pricingRules[0].price).toLocaleString('vi-VN')}đ/h
+                            )}
+                            {images.length >= 3 && (
+                                <>
+                                    <img 
+                                        src={images[1].startsWith('http') ? images[1] : `${SERVER_URL}${images[1]}`} 
+                                        className={styles.sideImage} 
+                                        alt={`${venue.name} 2`} 
+                                        onClick={() => openGallery(1)} 
+                                    />
+                                    <div className={styles.lastImageWrapper} onClick={() => openGallery(2)}>
+                                        <img src={images[2].startsWith('http') ? images[2] : `${SERVER_URL}${images[2]}`} alt={`${venue.name} 3`} />
+                                        {images.length > 3 && (
+                                            <div className={styles.moreImagesOverlay}>
+                                                + {images.length - 3} Ảnh khác
                                             </div>
                                         )}
-                                    </button>
-                                ))}
-                            </div>
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    ) : (
+                        <div className={styles.mainImage} style={{ background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {getSportIcon(venue.sportTypes?.[0])}
+                        </div>
+                    )}
+                </section>
+
+                {/* Main Content Layout */}
+                <div className={styles.contentLayout}>
+                    <div className={styles.sections}>
+                        
+                        {/* Group 1: General Info */}
+                        <div className={styles.infoGroup}>
+                            {/* Description */}
+                            <section>
+                                <h3 className={styles.sectionTitle}>Mô tả</h3>
+                                <p className={styles.description}>{venue.description || 'Chưa có mô tả cho sân này.'}</p>
+                            </section>
+
+                            {/* Amenities */}
+                            <section>
+                                <h3 className={styles.sectionTitle}>Tiện ích</h3>
+                                <div className={styles.amenitiesGrid}>
+                                    <div className={styles.amenityItem}>
+                                        <div className={styles.amenityIcon}><Wifi size={24} /></div>
+                                        Wifi miễn phí
+                                    </div>
+                                    <div className={styles.amenityItem}>
+                                        <div className={styles.amenityIcon}><Car size={24} /></div>
+                                        Chỗ đậu xe
+                                    </div>
+                                    <div className={styles.amenityItem}>
+                                        <div className={styles.amenityIcon}><Lock size={24} /></div>
+                                        Tủ đồ an toàn
+                                    </div>
+                                    <div className={styles.amenityItem}>
+                                        <div className={styles.amenityIcon}><UtensilsCrossed size={24} /></div>
+                                        Căng tin
+                                    </div>
+                                    <div className={styles.amenityItem}>
+                                        <div className={styles.amenityIcon}><Smartphone size={24} /></div>
+                                        Sóng điện thoại
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Map */}
+                            <section>
+                                <h3 className={styles.sectionTitle}>Vị trí</h3>
+                                <div className={styles.mapSection}>
+                                    <MapPicker 
+                                        readOnly={true} 
+                                        height={350} 
+                                        value={{ 
+                                            latitude: venue.latitude, 
+                                            longitude: venue.longitude,
+                                            fullAddress: `${venue.address}, ${venue.district}, ${venue.city}`
+                                        }} 
+                                    />
+                                </div>
+                            </section>
                         </div>
 
-                        {/* Pricing table for selected field */}
-                        {selectedField && selectedField.pricingRules?.length > 0 && (
-                            <div className={styles.section}>
-                                <h2 className="heading-sm">Bảng giá — {selectedField.name}</h2>
-                                <div className={styles.priceTable}>
-                                    {selectedField.pricingRules.map((rule) => (
-                                        <div key={rule.id} className={styles.priceRow}>
-                                            <div>
-                                                <strong>{rule.label || 'Khung giờ'}</strong>
-                                                <span className="caption"> {rule.startTime} - {rule.endTime}</span>
+                        {/* Group 2: Fields & Pricing */}
+                        <div className={styles.infoGroup}>
+                            <section>
+                                <h3 className={styles.sectionTitle}>Danh sách sân ({venue.fields?.length || 0})</h3>
+                                <div className={styles.fieldGrid}>
+                                    {venue.fields?.map(field => (
+                                        <div key={field.id} className={`${styles.fieldCard} ${selectedField?.id === field.id ? styles.fieldCardSelected : ''}`} onClick={() => setSelectedField(field)}>
+                                            <div className={styles.fieldInfo}>
+                                                <h4>{field.name}</h4>
+                                                <span className={styles.fieldType}>{getSportLabel(field.sportType)} • {field.fieldType}</span>
                                             </div>
-                                            <strong className={styles.priceValue}>
-                                                {Number(rule.price).toLocaleString('vi-VN')}đ/h
-                                            </strong>
+                                            <div className={styles.fieldPrice}>
+                                                <span className={`${styles.priceValue} ${styles.orangePrimary}`}>{formatPrice(field.pricingRules?.[0]?.price)}đ</span>
+                                                <span className={styles.priceUnit}>/giờ</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
+                            </section>
+                        </div>
 
                         {/* Reviews */}
-                        {venue.reviews?.length > 0 && (
-                            <div className={styles.section}>
-                                <h2 className="heading-sm">Đánh giá gần đây</h2>
-                                <div className={styles.reviews}>
-                                    {venue.reviews.map((review) => (
-                                        <div key={review.id} className={styles.reviewCard}>
-                                            <div className={styles.reviewHeader}>
-                                                <Avatar user={review.user} size="sm" />
-                                                <div>
-                                                    <strong className="body-sm">{review.user.fullName}</strong>
-                                                    <div className="stars body-sm">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</div>
+                        <section>
+                            <h3 className={styles.sectionTitle}>Đánh giá ({venue.reviews?.length || 0})</h3>
+                            <div className={styles.reviewsSummary}>
+                                <div className={styles.averageRatingBlock}>
+                                    <span className={styles.bigRating}>{avgRating.toFixed(1)}</span>
+                                    <div className={styles.rating}>
+                                        <Star size={20} fill="#FFC107" color="#FFC107" />
+                                    </div>
+                                    <span className={styles.reviewCountInfo}>{totalReviews} đánh giá</span>
+                                </div>
+                                <div className={styles.ratingBars}>
+                                    {[5, 4, 3, 2, 1].map(star => {
+                                        const count = starCounts[star];
+                                        const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
+                                        return (
+                                            <div key={star} className={styles.ratingBarRow}>
+                                                <span>{star} sao</span>
+                                                <div className={styles.progressBar}>
+                                                    <div className={styles.progressFill} style={{ width: `${percentage}%` }}></div>
                                                 </div>
+                                                <span>{count}</span>
                                             </div>
-                                            {review.comment && <p className={styles.reviewText}>{review.comment}</p>}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Right: Booking Panel */}
-                    <div className={styles.bookingPanel}>
-                        <div className={styles.bookingCard}>
-                            {bookingStep === 'select' && (
-                                <>
-                                    <h2 className="heading-sm">Đặt sân</h2>
-                                    <p className="caption" style={{ marginBottom: 20 }}>Chọn sân, ngày giờ và thanh toán</p>
-
-                                    {!bookingForm.fieldId && (
-                                        <div className={styles.hint}>👈 Chọn sân ở danh sách bên trái</div>
+                            <div className={styles.reviewControls}>
+                                <div className={styles.filterChips}>
+                                    <button 
+                                        className={`${styles.chip} ${reviewsFilter === 'all' ? styles.chipActive : ''}`}
+                                        onClick={() => { setReviewsFilter('all'); setReviewsPage(1); }}
+                                    >
+                                        Tất cả ({ratingCounts['all']})
+                                    </button>
+                                    {[5, 4, 3, 2, 1].map(star => (
+                                        <button 
+                                            key={star}
+                                            className={`${styles.chip} ${reviewsFilter === star.toString() ? styles.chipActive : ''}`}
+                                            onClick={() => { setReviewsFilter(star.toString()); setReviewsPage(1); }}
+                                            disabled={ratingCounts[star] === 0}
+                                        >
+                                            {star} Sao ({ratingCounts[star]})
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className={`${styles.customDropdown} ${styles.sortDropdown}`} ref={reviewsSortRef}>
+                                    <div 
+                                        className={`${styles.dropdownTrigger} ${reviewsSortOpen ? styles.dropdownTriggerOpen : ''}`}
+                                        onClick={() => setReviewsSortOpen(!reviewsSortOpen)}
+                                    >
+                                        <span>
+                                            {reviewsSort === 'newest' && 'Mới nhất'}
+                                            {reviewsSort === 'oldest' && 'Cũ nhất'}
+                                            {reviewsSort === 'highest' && 'Đánh giá cao nhất'}
+                                            {reviewsSort === 'lowest' && 'Đánh giá thấp nhất'}
+                                        </span>
+                                        <span className={`${styles.dropdownChevron} ${reviewsSortOpen ? styles.dropdownChevronOpen : ''}`}>
+                                            <ChevronDown size={16} />
+                                        </span>
+                                    </div>
+                                    
+                                    {reviewsSortOpen && (
+                                        <div className={`${styles.dropdownMenu} ${styles.dropdownMenuRight}`}>
+                                            {[
+                                                { value: 'newest', label: 'Mới nhất' },
+                                                { value: 'oldest', label: 'Cũ nhất' },
+                                                { value: 'highest', label: 'Đánh giá cao nhất' },
+                                                { value: 'lowest', label: 'Đánh giá thấp nhất' }
+                                            ].map(opt => (
+                                                <div 
+                                                    key={opt.value}
+                                                    className={`${styles.dropdownOption} ${reviewsSort === opt.value ? styles.dropdownOptionActive : ''}`}
+                                                    onClick={() => {
+                                                        setReviewsSort(opt.value);
+                                                        setReviewsPage(1);
+                                                        setReviewsSortOpen(false);
+                                                    }}
+                                                >
+                                                    {opt.label}
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
+                                </div>
+                            </div>
 
-                                    {bookingForm.fieldId && (
-                                        <>
-                                            <div className={styles.selectedInfo}>
-                                                ✅ {selectedField?.name}
-                                            </div>
-
-                                            {/* Date Picker - Calendar */}
-                                            <div className="form-group">
-                                                <label className="form-label">Ngày chơi</label>
-                                                {(() => {
-                                                    const today = new Date();
-                                                    const selectedDate = bookingForm.bookingDate ? new Date(bookingForm.bookingDate) : null;
-
-                                                    // Calendar month state via a simple approach
-                                                    const calMonth = selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
-                                                        : new Date(today.getFullYear(), today.getMonth(), 1);
-
-                                                    const year = calMonth.getFullYear();
-                                                    const month = calMonth.getMonth();
-                                                    const firstDay = new Date(year, month, 1).getDay(); // 0=CN
-                                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                                    const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-                                                        'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
-
-                                                    const cells = [];
-                                                    // empty cells before first day
-                                                    for (let i = 0; i < firstDay; i++) cells.push(null);
-                                                    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-                                                    return (
-                                                        <div className={styles.calendar}>
-                                                            <div className={styles.calHeader}>
-                                                                <button type="button" className={styles.calNav}
-                                                                    onClick={() => {
-                                                                        const prev = new Date(year, month - 1, 1);
-                                                                        if (prev >= new Date(today.getFullYear(), today.getMonth(), 1)) {
-                                                                            setBookingForm({ ...bookingForm, bookingDate: prev.toISOString().split('T')[0] });
-                                                                        }
-                                                                    }}>‹</button>
-                                                                <strong>{monthNames[month]} {year}</strong>
-                                                                <button type="button" className={styles.calNav}
-                                                                    onClick={() => {
-                                                                        const next = new Date(year, month + 1, 1);
-                                                                        setBookingForm({ ...bookingForm, bookingDate: next.toISOString().split('T')[0] });
-                                                                    }}>›</button>
-                                                            </div>
-                                                            <div className={styles.calGrid}>
-                                                                {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(d => (
-                                                                    <div key={d} className={styles.calDayName}>{d}</div>
-                                                                ))}
-                                                                {cells.map((day, idx) => {
-                                                                    if (!day) return <div key={`e-${idx}`} />;
-                                                                    const date = new Date(year, month, day);
-                                                                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                                                    const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                                                                    const isToday = date.toDateString() === today.toDateString();
-                                                                    const isSelected = bookingForm.bookingDate === dateStr;
-
-                                                                    return (
-                                                                        <button
-                                                                            key={dateStr}
-                                                                            type="button"
-                                                                            disabled={isPast}
-                                                                            className={`${styles.calDay} ${isSelected ? styles.calDayActive : ''} ${isToday ? styles.calDayToday : ''} ${isPast ? styles.calDayDisabled : ''}`}
-                                                                            onClick={() => setBookingForm({ ...bookingForm, bookingDate: dateStr, startTime: '', endTime: '' })}
-                                                                        >
-                                                                            {day}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-
-                                            {/* Time Frame Picker - Based on pricing rules */}
-                                            {bookingForm.bookingDate && selectedField?.pricingRules?.length > 0 && (
-                                                <div className="form-group">
-                                                    <label className="form-label">Chọn giờ</label>
-                                                    <div className={styles.timeSelectors}>
-                                                        <div className={styles.timePicker}>
-                                                            <span className={styles.timeLabel}>Bắt đầu</span>
-                                                            <select
-                                                                className={styles.timeSelect}
-                                                                value={bookingForm.startTime}
-                                                                onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value, endTime: '' })}
-                                                            >
-                                                                <option value="">-- Chọn --</option>
-                                                                {(() => {
-                                                                    const openH = parseInt(venue.openTime?.split(':')[0] || '6');
-                                                                    const closeH = parseInt(venue.closeTime?.split(':')[0] || '23');
-                                                                    const minH = getMinStartHour();
-                                                                    const opts = [];
-                                                                    for (let h = Math.max(openH, minH); h < closeH; h++) {
-                                                                        const booked = isHourBooked(h);
-                                                                        opts.push(
-                                                                            <option key={h} value={`${String(h).padStart(2, '0')}:00`} disabled={booked}>
-                                                                                {`${String(h).padStart(2, '0')}:00`}{booked ? ' (đã đặt)' : ''}
-                                                                            </option>
-                                                                        );
-                                                                    }
-                                                                    return opts;
-                                                                })()}
-                                                            </select>
-                                                        </div>
-                                                        <span className={styles.timeArrow}>→</span>
-                                                        <div className={styles.timePicker}>
-                                                            <span className={styles.timeLabel}>Kết thúc</span>
-                                                            <select
-                                                                className={styles.timeSelect}
-                                                                value={bookingForm.endTime}
-                                                                onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
-                                                                disabled={!bookingForm.startTime}
-                                                            >
-                                                                <option value="">-- Chọn --</option>
-                                                                {(() => {
-                                                                    if (!bookingForm.startTime) return [];
-                                                                    const [sh, sm] = bookingForm.startTime.split(':').map(Number);
-                                                                    const startMins = sh * 60 + sm;
-                                                                    const closeH = parseInt(venue.closeTime?.split(':')[0] || '23');
-                                                                    const opts = [];
-                                                                    for (let m = startMins + 60; m <= closeH * 60; m += 60) {
-                                                                        const h = Math.floor(m / 60);
-                                                                        const t = `${String(h).padStart(2, '0')}:00`;
-                                                                        const durH = (m - startMins) / 60;
-                                                                        const startH = startMins / 60;
-                                                                        const conflict = rangeOverlapsBooking(startH, h);
-                                                                        opts.push(
-                                                                            <option key={t} value={t} disabled={conflict}>
-                                                                                {t} ({durH}h){conflict ? ' (trùng lịch)' : ''}
-                                                                            </option>
-                                                                        );
-                                                                    }
-                                                                    return opts;
-                                                                })()}
-                                                            </select>
-                                                        </div>
+                            <div className={styles.reviewsContainer}>
+                                <div className={styles.reviewList}>
+                                    {paginatedReviews.length > 0 ? (
+                                        paginatedReviews.map(review => (
+                                            <div key={review.id} className={styles.reviewItem}>
+                                                <div className={styles.reviewHeader}>
+                                                    <div className={`avatar avatar-sm ${styles.avatar}`}>
+                                                        {review.user?.avatarUrl ? <img src={review.user.avatarUrl} alt={review.user.fullName} /> : review.user?.fullName?.charAt(0)}
+                                                    </div>
+                                                    <div className={styles.reviewAuthor}>
+                                                        <div className={styles.reviewAuthorName}>{review.user?.fullName}</div>
+                                                        <div className={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString('vi-VN')}</div>
+                                                    </div>
+                                                    <div className={styles.rating}>
+                                                        <Star size={14} fill="#FFC107" color="#FFC107" />
+                                                        <span>{review.rating}</span>
                                                     </div>
                                                 </div>
-                                            )}
-
-                                            {/* Price Preview */}
-                                            {bookingForm.bookingDate && bookingForm.startTime && bookingForm.endTime && selectedField?.pricingRules?.length > 0 && (
-                                                <div className={styles.pricePreview}>
-                                                    <div className={styles.pricePreviewHeader}>💰 Chi phí dự kiến</div>
-                                                    {(() => {
-                                                        const [sh, sm] = bookingForm.startTime.split(':').map(Number);
-                                                        const [eh, em] = bookingForm.endTime.split(':').map(Number);
-                                                        const startMins = sh * 60 + sm;
-                                                        const endMins = eh * 60 + em;
-                                                        const totalHours = (endMins - startMins) / 60;
-                                                        let totalPrice = 0;
-                                                        const breakdown = [];
-
-                                                        // Calculate price across pricing rule brackets
-                                                        selectedField.pricingRules.forEach(rule => {
-                                                            const [rsh, rsm] = rule.startTime.split(':').map(Number);
-                                                            const [reh, rem] = rule.endTime.split(':').map(Number);
-                                                            const rStart = rsh * 60 + rsm;
-                                                            const rEnd = reh * 60 + rem;
-                                                            const overlap = Math.max(0, Math.min(endMins, rEnd) - Math.max(startMins, rStart));
-                                                            if (overlap > 0) {
-                                                                const hours = overlap / 60;
-                                                                const cost = hours * Number(rule.price);
-                                                                totalPrice += cost;
-                                                                breakdown.push({
-                                                                    label: rule.label || 'Khung giờ',
-                                                                    hours,
-                                                                    price: Number(rule.price),
-                                                                    cost,
-                                                                });
-                                                            }
-                                                        });
-
-                                                        return (
-                                                            <>
-                                                                {breakdown.map((b, i) => (
-                                                                    <div key={i} className={styles.pricePreviewRow}>
-                                                                        <span>{b.label} ({b.hours}h × {b.price.toLocaleString('vi-VN')}đ)</span>
-                                                                        <strong>{b.cost.toLocaleString('vi-VN')}đ</strong>
-                                                                    </div>
-                                                                ))}
-                                                                <div className={styles.pricePreviewDivider} />
-                                                                <div className={styles.pricePreviewTotal}>
-                                                                    <span>Tổng ({totalHours}h)</span>
-                                                                    <strong>{totalPrice.toLocaleString('vi-VN')}đ</strong>
-                                                                </div>
-                                                                {bookingForm.paymentMethod === 'DIRECT' && (
-                                                                    <div className={styles.pricePreviewDeposit}>
-                                                                        <span>Cọc 10%</span>
-                                                                        <strong>{Math.round(totalPrice * 0.1).toLocaleString('vi-VN')}đ</strong>
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
-
-                                            <div className="form-group">
-                                                <label className="form-label">Thanh toán</label>
-                                                <div className={styles.paymentOptions}>
-                                                    <button
-                                                        type="button"
-                                                        className={`${styles.payOption} ${bookingForm.paymentMethod === 'DIRECT' ? styles.paySelected : ''}`}
-                                                        onClick={() => setBookingForm({ ...bookingForm, paymentMethod: 'DIRECT' })}
-                                                    >
-                                                        <span>💵</span>
-                                                        <div>
-                                                            <strong>Tại sân</strong>
-                                                            <span className="caption">Cọc 10% online</span>
-                                                        </div>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={`${styles.payOption} ${bookingForm.paymentMethod === 'ONLINE' ? styles.paySelected : ''}`}
-                                                        onClick={() => setBookingForm({ ...bookingForm, paymentMethod: 'ONLINE' })}
-                                                    >
-                                                        <span>💳</span>
-                                                        <div>
-                                                            <strong>Online</strong>
-                                                            <span className="caption">Thanh toán toàn bộ</span>
-                                                        </div>
-                                                    </button>
-                                                </div>
+                                                <p className={styles.reviewComment}>{review.comment}</p>
                                             </div>
-
-                                            {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
-
-                                            <button
-                                                className="btn btn-primary"
-                                                style={{ width: '100%' }}
-                                                disabled={!bookingForm.bookingDate || !bookingForm.startTime || !bookingForm.endTime || submitting}
-                                                onClick={handleBookingSubmit}
-                                            >
-                                                {submitting ? <span className="spinner" /> : 'Đặt sân →'}
-                                            </button>
-                                        </>
+                                        ))
+                                    ) : (
+                                        <p className={styles.emptyText}>Chưa có đánh giá nào phù hợp với bộ lọc.</p>
                                     )}
-                                </>
-                            )}
+                                </div>
+                                
+                                {totalReviewPages > 1 && (
+                                    <div className={styles.pagination}>
+                                        <button 
+                                            className={styles.pageButton} 
+                                            disabled={reviewsPage === 1}
+                                            onClick={() => setReviewsPage(p => Math.max(1, p - 1))}
+                                        >
+                                            <ChevronLeft size={16} /> Prev
+                                        </button>
+                                        
+                                        <div className={styles.pageNumbers}>
+                                            {Array.from({ length: totalReviewPages }, (_, i) => i + 1).map(pageNum => (
+                                                <button 
+                                                    key={pageNum}
+                                                    className={`${styles.pageNum} ${reviewsPage === pageNum ? styles.pageNumActive : ''}`}
+                                                    onClick={() => setReviewsPage(pageNum)}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            ))}
+                                        </div>
 
-                            {bookingStep === 'review' && calculatedPrice && (
-                                <>
-                                    <h2 className="heading-sm">Xác nhận đặt sân</h2>
+                                        <button 
+                                            className={styles.pageButton} 
+                                            disabled={reviewsPage === totalReviewPages}
+                                            onClick={() => setReviewsPage(p => Math.min(totalReviewPages, p + 1))}
+                                        >
+                                            Next <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    </div>
 
-                                    <div className={styles.summaryBox}>
-                                        <div className={styles.summaryRow}>
-                                            <span>Sân</span>
-                                            <strong>{selectedField?.name}</strong>
-                                        </div>
-                                        <div className={styles.summaryRow}>
-                                            <span>Ngày</span>
-                                            <strong>{bookingForm.bookingDate}</strong>
-                                        </div>
-                                        <div className={styles.summaryRow}>
-                                            <span>Giờ</span>
-                                            <strong>{bookingForm.startTime} - {bookingForm.endTime}</strong>
-                                        </div>
-                                        <div className={styles.summaryDivider} />
-                                        <div className={styles.summaryRow}>
-                                            <span>Tổng tiền</span>
-                                            <strong>{Number(calculatedPrice.totalPrice).toLocaleString('vi-VN')}đ</strong>
-                                        </div>
-                                        <div className={styles.summaryRow}>
-                                            <span>{bookingForm.paymentMethod === 'ONLINE' ? 'Thanh toán' : 'Tiền cọc (10%)'}</span>
-                                            <strong className={styles.priceHighlight}>
-                                                {Number(calculatedPrice.depositAmount).toLocaleString('vi-VN')}đ
-                                            </strong>
-                                        </div>
-                                        <div className={styles.summaryRow}>
-                                            <span>Giữ chỗ</span>
-                                            <strong>{calculatedPrice.holdMinutes} phút</strong>
+                        {/* Booking Sidebar Widget */}
+                        <aside className={styles.bookingWidget}>
+                            <div className={styles.widgetHeader}>
+                                <div className={`${styles.widgetPrice} ${styles.orangePrimary}`}>
+                                    {formatPrice(calculatedPrice)}đ 
+                                    <span>{totalHours > 0 ? ` / ${totalHours} giờ` : ' / giờ'}</span>
+                                </div>
+                            </div>
+
+                            <div className={styles.bookingForm}>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.formItem}>
+                                        <label>Ngày đặt</label>
+                                        <DatePicker 
+                                            value={selectedDate} 
+                                            onChange={(val) => setSelectedDate(val)} 
+                                            minDate={new Date().toISOString().split('T')[0]} 
+                                        />
+                                    </div>
+                                    <div className={styles.formItem} ref={fieldDropdownRef}>
+                                        <label>Chọn sân</label>
+                                        <div className={styles.customDropdown}>
+                                            <div 
+                                                className={`${styles.dropdownTrigger} ${fieldDropdownOpen ? styles.dropdownTriggerOpen : ''}`}
+                                                onClick={() => setFieldDropdownOpen(!fieldDropdownOpen)}
+                                            >
+                                                <span>{selectedField?.name || 'Vui lòng chọn sân...'}</span>
+                                                <span className={`${styles.dropdownChevron} ${fieldDropdownOpen ? styles.dropdownChevronOpen : ''}`}>
+                                                    <ChevronDown size={16} />
+                                                </span>
+                                            </div>
+                                            
+                                            {fieldDropdownOpen && (
+                                                <div className={styles.dropdownMenu}>
+                                                    {venue.fields?.map(f => (
+                                                        <div 
+                                                            key={f.id} 
+                                                            className={`${styles.dropdownOption} ${selectedField?.id === f.id ? styles.dropdownOptionActive : ''}`}
+                                                            onClick={() => {
+                                                                setSelectedField(f);
+                                                                setFieldDropdownOpen(false);
+                                                            }}
+                                                        >
+                                                            {f.name}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-
-                                    {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
-
-                                    <button
-                                        className="btn btn-primary"
-                                        style={{ width: '100%', marginBottom: 8 }}
-                                        disabled={submitting}
-                                        onClick={handlePayment}
-                                    >
-                                        {submitting ? <span className="spinner" /> : '💳 Thanh toán ngay'}
-                                    </button>
-                                    <button
-                                        className="btn btn-ghost"
-                                        style={{ width: '100%' }}
-                                        onClick={() => setBookingStep('select')}
-                                    >
-                                        ← Quay lại
-                                    </button>
-                                </>
-                            )}
-
-                            {bookingStep === 'done' && (
-                                <div className={styles.doneState}>
-                                    <div className={styles.doneIcon}>✅</div>
-                                    <h2 className="heading-sm">Đặt sân thành công!</h2>
-                                    <p className="caption">Bạn sẽ nhận được thông báo xác nhận. Chúc bạn có trận đấu vui vẻ!</p>
-                                    <button className="btn btn-primary" onClick={() => router.push('/bookings')}>
-                                        Xem đặt sân của tôi
-                                    </button>
+                                    <div className={styles.formItemBlock}>
+                                        <label className={styles.blockLabel}>Khung giờ (Chọn 1 hoặc nhiều)</label>
+                                        <div className={styles.timeGrid}>
+                                            {timeSlots.map(s => {
+                                                const isSelected = selectedSlots.some(sel => sel.time === s.time);
+                                                return (
+                                                    <button 
+                                                        key={s.time}
+                                                        className={`${styles.timeBlock} ${isSelected ? styles.timeSelected : ''} ${s.isBooked ? styles.timeBooked : ''}`}
+                                                        onClick={() => handleTimeClick(s)}
+                                                        disabled={s.isBooked}
+                                                    >
+                                                        {s.displayLabel}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Payment Type Selection */}
+                                    <div className={styles.formItemBlock}>
+                                        <label className={styles.blockLabel}>Phương thức thanh toán</label>
+                                        <div className={styles.paymentOptions}>
+                                            <div 
+                                                className={`${styles.paymentOption} ${paymentType === 'full' ? styles.paymentSelected : ''}`}
+                                                onClick={() => setPaymentType('full')}
+                                            >
+                                                <div className={styles.paymentRadio}>
+                                                    <div className={styles.radioInner}></div>
+                                                </div>
+                                                <div className={styles.paymentContent}>
+                                                    <span className={styles.paymentTitle}>Thanh toán toàn bộ</span>
+                                                    <span className={styles.paymentDesc}>Trả {formatPrice(calculatedPrice)}đ ngay lúc này</span>
+                                                </div>
+                                            </div>
+                                            <div 
+                                                className={`${styles.paymentOption} ${paymentType === 'deposit' ? styles.paymentSelected : ''}`}
+                                                onClick={() => setPaymentType('deposit')}
+                                            >
+                                                <div className={styles.paymentRadio}>
+                                                    <div className={styles.radioInner}></div>
+                                                </div>
+                                                <div className={styles.paymentContent}>
+                                                    <span className={styles.paymentTitle}>Đặt cọc (10%)</span>
+                                                    <span className={styles.paymentDesc}>Trả trước {formatPrice(calculatedPrice * 0.1)}đ</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
+
+                                <button 
+                                    className={`btn ${styles.bookButton} ${styles.orangeButton}`} 
+                                    onClick={handleBooking} 
+                                    disabled={isBooking || selectedSlots.length === 0 || selectedSlots.length % 2 !== 0}
+                                >
+                                    {isBooking ? 'Đang xử lý...' : (selectedSlots.length === 0 ? 'Chọn khung giờ để đặt' : (selectedSlots.length % 2 !== 0 ? 'Vui lòng chọn chẵn giờ (1h, 2h...)' : `Đặt sân từ ${selectedSlots[0].time} đến ${getEndTime(selectedSlots)}`))}
+                                </button>
+                            <div className={styles.widgetFooter}>
+                                <p style={{ color: 'var(--text-tertiary)' }}>Bạn chưa bị trừ tiền ngay lúc này</p>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+            <PageFooter />
+
+            {/* Gallery Lightbox Modal */}
+            {isGalleryOpen && images.length > 0 && (
+                <div className={styles.galleryModal} onClick={closeGallery}>
+                    <div className={styles.modalClose}>
+                        <span>&times;</span>
+                    </div>
+                    
+                    <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        <img 
+                            src={images[currentImageIndex].startsWith('http') ? images[currentImageIndex] : `${SERVER_URL}${images[currentImageIndex]}`} 
+                            alt={`Gallery image ${currentImageIndex + 1}`} 
+                        />
+                        
+                        {images.length > 1 && (
+                            <>
+                                <button className={`${styles.navButton} ${styles.prevButton}`} onClick={prevImage}>
+                                    &#10094;
+                                </button>
+                                <button className={`${styles.navButton} ${styles.nextButton}`} onClick={nextImage}>
+                                    &#10095;
+                                </button>
+                            </>
+                        )}
+                        
+                        <div className={styles.imageCounter}>
+                            {currentImageIndex + 1} / {images.length}
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

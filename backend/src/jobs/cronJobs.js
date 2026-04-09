@@ -81,19 +81,33 @@ function startCronJobs(prisma) {
                             data: { status: 'MATCHED' },
                         });
 
-                        // Create chat room
-                        const chatRoom = await prisma.chatRoom.create({
-                            data: {
-                                type: 'MATCH_GROUP',
-                                name: `Auto-match: ${a.sportType} - ${a.bookingDate.toISOString().split('T')[0]}`,
-                                members: {
-                                    create: [
-                                        { userId: a.userId },
-                                        { userId: b.userId },
-                                    ],
-                                },
+                        // Find existing direct room between the two users
+                        const existingMemberships = await prisma.chatRoomMember.findMany({
+                            where: { userId: a.userId },
+                            include: {
+                                room: { include: { members: true } },
                             },
                         });
+
+                        let chatRoom = existingMemberships.find(m =>
+                            m.room.type === 'DIRECT' &&
+                            m.room.members.length === 2 &&
+                            m.room.members.some(mem => mem.userId === b.userId)
+                        )?.room;
+
+                        if (!chatRoom) {
+                            chatRoom = await prisma.chatRoom.create({
+                                data: {
+                                    type: 'DIRECT',
+                                    members: {
+                                        create: [
+                                            { userId: a.userId },
+                                            { userId: b.userId },
+                                        ],
+                                    },
+                                },
+                            });
+                        }
 
                         // Notify both users
                         const dateStr = a.bookingDate.toISOString().split('T')[0];

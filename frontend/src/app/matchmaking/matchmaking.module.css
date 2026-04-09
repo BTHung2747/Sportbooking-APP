@@ -1,131 +1,278 @@
+/* ── Page ── */
 .page {
     padding: var(--space-2xl) 0;
     min-height: calc(100vh - var(--nav-height));
+    background: #FFF5ED;
 }
 
 .header {
-    margin-bottom: var(--space-xl);
+    margin-bottom: 28px;
 }
 
 .subtitle {
-    color: var(--text-secondary);
-    font-size: 17px;
-    margin-top: var(--space-xs);
+    color: #6B7280;
+    font-size: 15px;
+    margin-top: 4px;
 }
 
+/* ── Tabs ── */
+.tabBar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.tabBar :global(.tab) {
+    padding: 8px 22px !important;
+    border-radius: 24px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border: 1.5px solid #E5E7EB !important;
+    background: white !important;
+    color: #6B7280 !important;
+    transition: all 0.15s !important;
+}
+
+.tabBar :global(.tab):hover {
+    border-color: #FF6E40 !important;
+    color: #FF6E40 !important;
+}
+
+.tabBar :global(.tab.active) {
+    border-color: #FF6E40 !important;
+    color: #FF6E40 !important;
+    background: white !important;
+}
+
+/* ── Filters ── */
 .filters {
     display: flex;
-    gap: var(--space-md);
-    margin-bottom: var(--space-xl);
+    gap: 12px;
+    margin-bottom: 24px;
     flex-wrap: wrap;
 }
 
 .filters select,
 .filters input {
-    max-width: 280px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid #E5E7EB;
+    background: white;
+    font-size: 14px;
+    color: #1A1A1A;
+    outline: none;
+    min-width: 180px;
+    max-width: 260px;
+    transition: border-color 0.15s;
 }
 
+.filters select:focus,
+.filters input:focus {
+    border-color: #FF6E40;
+}
+
+/* ── Grid ── */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: var(--space-lg);
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
 }
 
+/* ── Post Card ── */
 .postCard {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    padding: var(--space-lg);
-    transition: all var(--transition-default);
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 20px;
+    padding: 16px;
+    min-height: 220px;
+    box-shadow: 0px 2px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 .postCard:hover {
-    box-shadow: var(--shadow-md);
+    transform: translateY(-3px);
+    box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.12);
 }
 
+/* ── Header ── */
 .postHeader {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-md);
+    margin-bottom: 12px;
 }
 
-.postHeader strong {
-    font-size: 14px;
-}
+.postHeader strong { font-size: 14px; }
 
+/* ── Post Body ── */
 .postBody {
-    margin-bottom: var(--space-md);
+    margin-bottom: 0;
+    flex: 1;
 }
 
+/* Môn thể thao */
 .postTag {
-    display: inline-block;
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1F2937;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+/* Detail grid 2 cột */
+.detailGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
 .postDetail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
-    color: var(--text-secondary);
-    margin-bottom: 4px;
+    color: #1F2937;
+}
+
+.postDetailFull {
+    grid-column: 1 / -1;
+    color: #6B7280;
 }
 
 .postDesc {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-top: var(--space-sm);
+    font-size: 13px;
+    color: #6B7280;
+    margin-top: 10px;
     line-height: 1.5;
-    border-top: 1px solid var(--divider);
-    padding-top: var(--space-sm);
+    border-top: 1px solid #E5E7EB;
+    padding-top: 10px;
 }
 
-/* Requests */
+/* Divider */
+.divider {
+    height: 1px;
+    background: #E5E7EB;
+    width: 100%;
+    margin: 12px 0;
+}
+
+/* ── Invite Button ── */
+.btnInvite {
+    width: 100%;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #FF5733, #FF7555);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    font-family: inherit;
+    margin-top: auto;
+}
+
+.btnInvite:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* ── Requests ── */
 .requestList {
-    border-top: 1px solid var(--divider);
-    padding-top: var(--space-md);
-    margin-top: var(--space-sm);
+    border-top: 1px solid #F3F4F6;
+    padding-top: 12px;
+    margin-top: 8px;
+}
+
+.requestLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6B7280;
+    margin-bottom: 8px;
 }
 
 .requestItem {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-sm) 0;
+    padding: 8px 0;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.requestItem:last-child {
+    border-bottom: none;
 }
 
 .requestUser {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: 8px;
 }
 
 .requestActions {
     display: flex;
-    gap: 4px;
+    gap: 6px;
 }
 
-/* Create Form */
+.btnAccept {
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: none;
+    background: #E1F5EE;
+    color: #0F6E56;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btnReject {
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: 1px solid #E5E7EB;
+    background: transparent;
+    color: #6B7280;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+/* ── Create Form ── */
 .createForm {
-    max-width: 560px;
+    max-width: 520px;
 }
 
 .formCard {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-2xl);
-    padding: var(--space-xl);
-    box-shadow: var(--shadow-md);
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 18px;
+    padding: 24px;
 }
 
 .autoMatch {
-    margin-bottom: var(--space-lg);
+    margin-bottom: 16px;
+}
+
+.switchRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: #F9FAFB;
+    border-radius: 12px;
+    cursor: pointer;
 }
 
 .switchLabel {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
+    gap: 12px;
     cursor: pointer;
 }
 
@@ -134,49 +281,166 @@
 }
 
 .switchTrack {
-    width: 48px;
-    height: 28px;
-    background: var(--bg-tertiary);
-    border-radius: 14px;
+    width: 44px;
+    height: 26px;
+    background: #D1D5DB;
+    border-radius: 13px;
     position: relative;
-    transition: background var(--transition-fast);
+    transition: background 0.2s;
     flex-shrink: 0;
 }
 
-.switchLabel input:checked+.switchTrack {
-    background: var(--primary);
+.switchLabel input:checked + .switchTrack {
+    background: #FF6E40;
 }
 
 .switchThumb {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     background: white;
     border-radius: 50%;
     position: absolute;
     top: 3px;
     left: 3px;
-    transition: transform var(--transition-fast);
-    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
-.switchLabel input:checked+.switchTrack .switchThumb {
-    transform: translateX(20px);
+.switchLabel input:checked + .switchTrack .switchThumb {
+    transform: translateX(18px);
 }
 
 .switchLabel strong {
     display: block;
     font-size: 14px;
+    font-weight: 600;
+    color: #1A1A1A;
 }
 
+.switchLabel span {
+    font-size: 12px;
+    color: #6B7280;
+}
+
+/* ── Skeleton ── */
 .skeletonCard {
-    padding: var(--space-lg);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border-light);
-    background: var(--bg-elevated);
+    padding: 18px 20px;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    background: white;
 }
 
 @media (max-width: 768px) {
     .grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ── Custom Dropdown (Giống 100% trang Venues) ── */
+.customDropdown {
+    position: relative;
+    user-select: none;
+    min-width: 200px;
+    z-index: 10000;
+}
+
+.dropdownTrigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #ffffff;
+    border: 1.5px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.dropdownTrigger:hover {
+    border-color: #E04147;
+    box-shadow: 0 0 0 3px rgba(224, 65, 71, 0.08);
+    color: #E04147;
+}
+
+.dropdownTriggerOpen {
+    border-color: #E04147;
+    box-shadow: 0 0 0 3px rgba(224, 65, 71, 0.15);
+    color: #E04147;
+}
+
+.dropdownChevron {
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s;
+    color: #9CA3AF;
+    flex-shrink: 0;
+}
+
+.dropdownTriggerOpen .dropdownChevron {
+    color: #E04147;
+}
+
+.dropdownChevronOpen {
+    transform: rotate(180deg);
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 100%;
+    background: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    padding: 6px;
+    z-index: 9999;
+    animation: dropdownFadeIn 180ms cubic-bezier(0.25, 0.1, 0.25, 1);
+    overflow: hidden;
+}
+
+.dropdownOption {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 450;
+    color: #111827;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.dropdownOption:hover {
+    background: rgba(224, 65, 71, 0.05);
+}
+
+.dropdownOptionActive {
+    background: rgba(224, 65, 71, 0.1);
+    color: #E04147;
+    font-weight: 600;
+}
+
+.dropdownOptionActive:hover {
+    background: rgba(224, 65, 71, 0.15);
+}
+
+.dropdownOptionIcon {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
 }

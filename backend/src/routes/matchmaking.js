@@ -127,7 +127,10 @@ router.post('/posts/:postId/request', authenticate, async (req, res, next) => {
     try {
         const post = await prisma.matchmakingPost.findUnique({
             where: { id: req.params.postId },
-            include: { user: true },
+            include: {
+                user: true,
+                field: { include: { venue: true } }
+            },
         });
 
         if (!post) {
@@ -172,6 +175,74 @@ router.post('/posts/:postId/request', authenticate, async (req, res, next) => {
                 data: { postId: post.id, requestId: request.id },
             },
         });
+
+        // --- In-chat matchmaking notification ---
+        // Find existing direct room between requester and post owner
+        const existingMemberships = await prisma.chatRoomMember.findMany({
+            where: { userId: req.user.id },
+            include: {
+                room: { include: { members: true } },
+            },
+        });
+
+        let chatRoom = existingMemberships.find(m =>
+            m.room.type === 'DIRECT' &&
+            m.room.members.length === 2 &&
+            m.room.members.some(mem => mem.userId === post.userId)
+        )?.room;
+
+        if (!chatRoom) {
+            chatRoom = await prisma.chatRoom.create({
+                data: {
+                    type: 'DIRECT',
+                    members: {
+                        create: [
+                            { userId: req.user.id },
+                            { userId: post.userId },
+                        ],
+                    },
+                },
+            });
+        }
+
+        const address = post.field?.venue?.address || `${post.district ? post.district + ', ' : ''}${post.city}`;
+
+        // Send SYSTEM message containing the request details as JSON
+        const messageContent = JSON.stringify({
+            action: 'MATCH_REQUEST',
+            requestId: request.id,
+            postId: post.id,
+            sportType: post.sportType,
+            bookingDate: post.bookingDate.toISOString().split('T')[0],
+            startTime: post.startTime,
+            endTime: post.endTime,
+            address: address,
+            note: post.description || 'Không có ghi chú',
+            status: 'PENDING'
+        });
+
+        const message = await prisma.message.create({
+            data: {
+                roomId: chatRoom.id,
+                senderId: req.user.id, // The requester
+                content: messageContent,
+                type: 'SYSTEM',
+            },
+            include: {
+                sender: { select: { id: true, fullName: true, avatarUrl: true } },
+            },
+        });
+
+        // Broadcast to chat room
+        const io = req.app.get('io');
+        if (io) {
+            io.to(chatRoom.id).emit('new_message', message);
+            // Notify the post owner via their global user room
+            io.to(`user:${post.userId}`).emit('message_notification', {
+                roomId: chatRoom.id,
+                message,
+            });
+        }
 
         res.status(201).json({
             success: true,
@@ -226,19 +297,56 @@ router.post('/requests/:id/accept', authenticate, async (req, res, next) => {
             data: { status: 'REJECTED' },
         });
 
-        // Create chat room between the two users
-        const chatRoom = await prisma.chatRoom.create({
-            data: {
-                type: 'MATCH_GROUP',
-                name: `Match: ${request.post.sportType} - ${request.post.bookingDate.toISOString().split('T')[0]}`,
-                members: {
-                    create: [
-                        { userId: request.post.userId },
-                        { userId: request.requesterId },
-                    ],
-                },
+        // Find existing direct room between the two users
+        const existingMemberships = await prisma.chatRoomMember.findMany({
+            where: { userId: request.post.userId },
+            include: {
+                room: { include: { members: true } },
             },
         });
+
+        let chatRoom = existingMemberships.find(m =>
+            m.room.type === 'DIRECT' &&
+            m.room.members.length === 2 &&
+            m.room.members.some(mem => mem.userId === request.requesterId)
+        )?.room;
+
+        if (!chatRoom) {
+            chatRoom = await prisma.chatRoom.create({
+                data: {
+                    type: 'DIRECT',
+                    members: {
+                        create: [
+                            { userId: request.post.userId },
+                            { userId: request.requesterId },
+                        ],
+                    },
+                },
+            });
+        }
+
+        // Update SYSTEM message status to ACCEPTED
+        const sysMessages = await prisma.message.findMany({
+            where: { roomId: chatRoom.id, type: 'SYSTEM' },
+            orderBy: { createdAt: 'desc' },
+            take: 20
+        });
+        const existingMsg = sysMessages.find(m => {
+            try {
+                const p = JSON.parse(m.content);
+                return p.action === 'MATCH_REQUEST' && p.requestId === request.id;
+            } catch (e) { return false; }
+        });
+        if (existingMsg) {
+            try {
+                const parsed = JSON.parse(existingMsg.content);
+                parsed.status = 'ACCEPTED';
+                await prisma.message.update({
+                    where: { id: existingMsg.id },
+                    data: { content: JSON.stringify(parsed) }
+                });
+            } catch (e) { }
+        }
 
         // Notify requester
         await prisma.notification.create({
@@ -280,6 +388,41 @@ router.post('/requests/:id/reject', authenticate, async (req, res, next) => {
             where: { id: request.id },
             data: { status: 'REJECTED' },
         });
+
+        // Update SYSTEM message status to REJECTED
+        const existingMemberships = await prisma.chatRoomMember.findMany({
+            where: { userId: request.post.userId },
+            include: { room: { include: { members: true } } },
+        });
+        const chatRoom = existingMemberships.find(m =>
+            m.room.type === 'DIRECT' &&
+            m.room.members.length === 2 &&
+            m.room.members.some(mem => mem.userId === request.requesterId)
+        )?.room;
+
+        if (chatRoom) {
+            const sysMessages = await prisma.message.findMany({
+                where: { roomId: chatRoom.id, type: 'SYSTEM' },
+                orderBy: { createdAt: 'desc' },
+                take: 20
+            });
+            const existingMsg = sysMessages.find(m => {
+                try {
+                    const p = JSON.parse(m.content);
+                    return p.action === 'MATCH_REQUEST' && p.requestId === request.id;
+                } catch (e) { return false; }
+            });
+            if (existingMsg) {
+                try {
+                    const parsed = JSON.parse(existingMsg.content);
+                    parsed.status = 'REJECTED';
+                    await prisma.message.update({
+                        where: { id: existingMsg.id },
+                        data: { content: JSON.stringify(parsed) }
+                    });
+                } catch (e) { }
+            }
+        }
 
         // Notify requester
         await prisma.notification.create({

@@ -5,12 +5,88 @@ const { authenticate } = require('../middleware/auth');
 const { validate, createBookingValidation } = require('../middleware/validate');
 const { calculateTotalPrice, getUnavailableFieldIds } = require('../services/bookingService');
 
+// ── Auto-expire bookings mỗi phút (Hủy đơn quá hạn cọc) ──
+setInterval(async () => {
+    try {
+        const result = await prisma.booking.updateMany({
+            where: {
+                status: 'PENDING_DEPOSIT',
+                holdExpiresAt: { lt: new Date() },
+            },
+            data: { status: 'EXPIRED' },
+        });
+        if (result.count > 0) {
+            console.log(`[AutoExpire] ${result.count} booking(s) expired`);
+        }
+    } catch (err) {
+        console.error('[AutoExpire] Error:', err.message);
+    }
+}, 60 * 1000); // chạy mỗi 60 giây
+
+// ── Auto-complete bookings mỗi phút (Chuyển CONFIRMED -> COMPLETED khi qua giờ) ──
+setInterval(async () => {
+    try {
+        // Lấy thời gian hiện tại theo múi giờ Việt Nam (GMT+7)
+        const now = new Date();
+        const vnTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+        
+        const currentYear = vnTime.getFullYear();
+        const currentMonth = vnTime.getMonth();
+        const currentDate = vnTime.getDate();
+        
+        // Format giờ hiện tại thành chuỗi "HH:mm"
+        const currentHours = vnTime.getHours().toString().padStart(2, '0');
+        const currentMinutes = vnTime.getMinutes().toString().padStart(2, '0');
+        const currentTimeStr = `${currentHours}:${currentMinutes}`;
+
+        // Tìm tất cả các booking đang ở trạng thái CONFIRMED
+        const bookingsToCheck = await prisma.booking.findMany({
+            where: { status: 'CONFIRMED' },
+            select: { id: true, bookingDate: true, endTime: true }
+        });
+
+        // Lọc ra các booking đã vượt quá thời gian
+        const expiredBookingIds = bookingsToCheck.filter(booking => {
+            // Chuyển bookingDate sang múi giờ VN để so sánh cho chuẩn
+            const bDate = new Date(booking.bookingDate.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+            
+            const bYear = bDate.getFullYear();
+            const bMonth = bDate.getMonth();
+            const bDateNum = bDate.getDate();
+
+            // 1. Nếu năm/tháng/ngày của booking nằm ở quá khứ -> Đã qua giờ
+            if (bYear < currentYear) return true;
+            if (bYear === currentYear && bMonth < currentMonth) return true;
+            if (bYear === currentYear && bMonth === currentMonth && bDateNum < currentDate) return true;
+            
+            // 2. Nếu booking là ngày hôm nay, so sánh endTime
+            if (bYear === currentYear && bMonth === currentMonth && bDateNum === currentDate) {
+                // Nếu endTime (VD: "19:30") nhỏ hơn hoặc bằng thời gian hiện tại (VD: "19:31")
+                return booking.endTime <= currentTimeStr; 
+            }
+
+            // Các trường hợp còn lại (booking ở tương lai)
+            return false;
+        }).map(b => b.id);
+
+        // Cập nhật các ID thỏa mãn thành COMPLETED
+        if (expiredBookingIds.length > 0) {
+            const result = await prisma.booking.updateMany({
+                where: { id: { in: expiredBookingIds } },
+                data: { status: 'COMPLETED' },
+            });
+            console.log(`[AutoComplete] ${result.count} booking(s) marked as COMPLETED`);
+        }
+    } catch (err) {
+        console.error('[AutoComplete] Error:', err.message);
+    }
+}, 60 * 1000); // Chạy mỗi 60 giây
+
 // POST /api/bookings/search - Search available fields
 router.post('/search', async (req, res, next) => {
     try {
         const { sportType, city, district, bookingDate, startTime, endTime } = req.body;
 
-        // Find approved venues with matching criteria
         const where = {
             status: 'APPROVED',
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
@@ -36,21 +112,16 @@ router.post('/search', async (req, res, next) => {
             },
         });
 
-        // Get unavailable field IDs for the given date/time
         const unavailableIds = await getUnavailableFieldIds(bookingDate, startTime, endTime);
 
-        // Filter out unavailable fields & apply parent/child logic
         const results = venues.map(venue => {
             let availableFields = venue.fields.filter(f => !unavailableIds.has(f.id));
 
-            // Parent/child conflict resolution
             availableFields = availableFields.filter(field => {
-                // If this is a COMBINED (parent) field, check if any child is booked
                 if (field.parentComposites.length > 0) {
                     const childIds = field.parentComposites.map(c => c.childFieldId);
                     return !childIds.some(id => unavailableIds.has(id));
                 }
-                // If this field is a child, check if parent is booked
                 if (field.childComposites.length > 0) {
                     const parentIds = field.childComposites.map(c => c.parentFieldId);
                     return !parentIds.some(id => unavailableIds.has(id));
@@ -79,7 +150,6 @@ router.post('/', authenticate, validate(createBookingValidation), async (req, re
     try {
         const { fieldId, bookingDate, startTime, endTime, paymentMethod } = req.body;
 
-        // Verify field exists and is active
         const field = await prisma.field.findUnique({
             where: { id: fieldId },
             include: {
@@ -93,13 +163,11 @@ router.post('/', authenticate, validate(createBookingValidation), async (req, re
             return res.status(404).json({ success: false, message: 'Field not found or inactive' });
         }
 
-        // Check availability
         const unavailableIds = await getUnavailableFieldIds(bookingDate, startTime, endTime);
         if (unavailableIds.has(fieldId)) {
             return res.status(409).json({ success: false, message: 'Field is already booked for this time slot' });
         }
 
-        // Check parent/child conflicts
         const relatedFieldIds = [
             ...field.parentComposites.map(c => c.childFieldId),
             ...field.childComposites.map(c => c.parentFieldId),
@@ -112,18 +180,15 @@ router.post('/', authenticate, validate(createBookingValidation), async (req, re
             });
         }
 
-        // Calculate pricing
         const totalPrice = await calculateTotalPrice(fieldId, bookingDate, startTime, endTime);
         const depositRate = parseFloat(process.env.DEFAULT_DEPOSIT_RATE) || 0.10;
         const commissionRate = parseFloat(field.venue.commissionRate) || 0.05;
         const depositAmount = Math.round(totalPrice * depositRate);
         const commissionAmount = Math.round(totalPrice * commissionRate);
 
-        // Hold duration
         const holdMinutes = field.venue.holdDurationMinutes || 10;
         const holdExpiresAt = new Date(Date.now() + holdMinutes * 60 * 1000);
 
-        // Create booking
         const booking = await prisma.booking.create({
             data: {
                 customerId: req.user.id,
@@ -182,7 +247,6 @@ router.post('/:id/confirm', authenticate, async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Booking is not awaiting deposit' });
         }
 
-        // Check if hold has expired
         if (booking.holdExpiresAt && new Date() > new Date(booking.holdExpiresAt)) {
             await prisma.booking.update({
                 where: { id: booking.id },
@@ -191,7 +255,6 @@ router.post('/:id/confirm', authenticate, async (req, res, next) => {
             return res.status(410).json({ success: false, message: 'Hold has expired. Please create a new booking.' });
         }
 
-        // Create payment record
         const payAmount = booking.paymentMethod === 'ONLINE'
             ? booking.totalPrice
             : booking.depositAmount;
@@ -207,7 +270,6 @@ router.post('/:id/confirm', authenticate, async (req, res, next) => {
             },
         });
 
-        // Update booking status
         const updated = await prisma.booking.update({
             where: { id: booking.id },
             data: { status: 'CONFIRMED' },
@@ -217,7 +279,6 @@ router.post('/:id/confirm', authenticate, async (req, res, next) => {
             },
         });
 
-        // Notify customer
         await prisma.notification.create({
             data: {
                 userId: booking.customerId,
@@ -228,7 +289,6 @@ router.post('/:id/confirm', authenticate, async (req, res, next) => {
             },
         });
 
-        // Notify venue owner
         await prisma.notification.create({
             data: {
                 userId: booking.field.venue.ownerId,
@@ -276,11 +336,9 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
         let cancelledBy;
 
         if (isCustomer) {
-            // Customer cancels → loses 10% deposit, split 50/50
             cancellationFee = Number(booking.depositAmount);
             cancelledBy = 'CUSTOMER';
         } else if (isOwner) {
-            // Owner cancels → check 24h rule
             const bookingDateTime = new Date(`${booking.bookingDate.toISOString().split('T')[0]}T${booking.startTime}:00`);
             const hoursUntil = (bookingDateTime - new Date()) / (1000 * 60 * 60);
 
@@ -291,10 +349,9 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
                 });
             }
 
-            cancellationFee = 0; // Full refund to customer
+            cancellationFee = 0;
             cancelledBy = 'OWNER';
 
-            // Refund payment
             await prisma.payment.create({
                 data: {
                     bookingId: booking.id,
@@ -317,7 +374,6 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
             },
         });
 
-        // Notify both parties
         const notifyUserId = isCustomer ? booking.field.venue.ownerId : booking.customerId;
         await prisma.notification.create({
             data: {
@@ -355,7 +411,11 @@ router.get('/my', authenticate, async (req, res, next) => {
                 where,
                 include: {
                     field: {
-                        include: { venue: { select: { id: true, name: true, address: true } } },
+                        include: {
+                            venue: {
+                                select: { id: true, name: true, address: true, images: true },
+                            },
+                        },
                     },
                     payments: true,
                     review: true,
